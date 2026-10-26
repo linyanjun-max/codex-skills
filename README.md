@@ -1,4 +1,13 @@
-# PDF → Chinese Word Translation Skill
+# Codex Skills Collection
+
+This repository contains reusable Codex skills.
+
+## Available skills
+
+- `pdf-to-word-translation/` — complete translation of technical PDFs into Chinese Word documents.
+- `simulink-from-matlab/` — build a clear Simulink model from MATLAB simulation code and an assignment document, preserving plant variables, disturbances, sensors, predictive analysis, RUL, and alarms.
+
+The original PDF translation skill remains available below.
 
 An offline Codex skill for translating Russian and other technical PDFs into complete Chinese `.docx` files while preserving formulas, figures, tables, captions, footnotes, and page coverage.
 
