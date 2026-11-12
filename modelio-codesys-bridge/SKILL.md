@@ -1,10 +1,10 @@
 ---
-name: dsh-app-bridge
+name: modelio-codesys-bridge
 description: "Operate Modelio 4.1 (Jython batch) and CODESYS 3.5 (IronPython headless) from DeepSeek Harness with five bridge tools — bridge_status, codesys_run, modelio_run, bridge_launch_gui, bridge_help. Use when the user asks to edit, author, simulate, or validate UML models in Modelio or IEC 61131-3 projects in CODESYS on Windows. The bridge is a host-level DSH plugin installed through a composition patch; the tools exist only when that plugin row is loaded."
 whenToUse: "Use when a DSH session must drive Modelio or CODESYS: create or edit UML elements and diagrams, open/save/compile CODESYS projects, add or edit POUs, log in to a simulated PLC and read/write variables, or run a validation/audit pass. Also use when a previous bridge run failed and you need to read its structured report before retrying."
 ---
 
-# DSH app-bridge — Modelio 4.1 / CODESYS 3.5
+# modelio-codesys-bridge — Modelio 4.1 / CODESYS 3.5 automation bridge
 
 This skill documents a **DeepSeek Harness (DSH) host plugin** that turns the scripting
 engines of two Windows IDEs into model-callable tools. It is not a Codex skill in the
@@ -154,8 +154,8 @@ A GUI that exits within 2.5 s is reported as `started: false` with `exitCode`/`s
 
 ```
 $DSH_HOME/
-  cordis.patch.yml                     # one insert: id tool-app-bridge -> plugin/lib/index.js
-  plugins/dsh-tool-app-bridge/         # this package
+  cordis.patch.yml                     # one insert: id modelio-codesys-bridge -> plugin/lib/index.js
+  plugins/modelio-codesys-bridge/         # this package
     package.json  lib/index.js  cordis.patch.yml  scripts/selfcheck.mjs
 ```
 
@@ -187,12 +187,12 @@ $DSH_HOME/
 Three mutually exclusive ways — inserting the same row id twice is a loader error.
 
 **A. User-level patch (recommended).** Put the package at
-`$DSH_HOME/plugins/dsh-tool-app-bridge/` and create `$DSH_HOME/cordis.patch.yml`:
+`$DSH_HOME/plugins/modelio-codesys-bridge/` and create `$DSH_HOME/cordis.patch.yml`:
 
 ```yaml
 - insert:
-    - id: tool-app-bridge
-      name: './plugins/dsh-tool-app-bridge/lib/index.js'
+    - id: modelio-codesys-bridge
+      name: './plugins/modelio-codesys-bridge/lib/index.js'
 ```
 
 Restart DSH. The tools appear in every profile and every session.
@@ -206,12 +206,12 @@ package declares `dsh.bundle.patch`, so its own `plugin/cordis.patch.yml` insert
 Config on the row is optional:
 
 ```yaml
-- id: tool-app-bridge
-  name: './plugins/dsh-tool-app-bridge/lib/index.js'
+- id: modelio-codesys-bridge
+  name: './plugins/modelio-codesys-bridge/lib/index.js'
   config:
     codesysRoot: 'D:\CODESYS 3.5'     # default
     modelioRoot: 'D:\modelio'         # default
-    scratchDir: 'C:\Users\me\bridge'  # default %USERPROFILE%\.dsh\app-bridge
+    scratchDir: 'C:\Users\me\bridge'  # default %USERPROFILE%\.dsh\modelio-codesys-bridge
 ```
 
 ## Verify and debug

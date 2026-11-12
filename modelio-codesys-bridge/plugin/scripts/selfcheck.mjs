@@ -1,4 +1,4 @@
-// Standalone self-check for dsh-tool-app-bridge.
+// Standalone self-check for dsh-tool-modelio-codesys-bridge.
 //
 // Boots the plugin module outside DeepSeek Harness against a minimal fake
 // Cordis context whose `fs` / `subprocess` / `timer` adapters follow the same
@@ -19,7 +19,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgRoot = resolve(here, '..')
 const entry = join(pkgRoot, 'lib', 'index.js')
 
-const workRoot = process.env.SELFCHECK_DIR || join(tmpdir(), 'dsh-tool-app-bridge-selfcheck')
+const workRoot = process.env.SELFCHECK_DIR || join(tmpdir(), 'dsh-tool-modelio-codesys-bridge-selfcheck')
 const scratch = join(workRoot, 'scratch')
 const workspace = join(workRoot, 'ws')
 

@@ -15,7 +15,7 @@ DSH 的每个能力都是 composition 里的一行（`cordis.yml` / patch 文件
 模块形态是普通 ESM，`apply(ctx, config)` 是唯一入口：
 
 ```js
-export const name = 'tool-app-bridge'
+export const name = 'modelio-codesys-bridge'
 export const inject = ['fs', 'subprocess', 'timer']
 export function apply(ctx, config) { /* ... */ }
 ```
@@ -30,8 +30,8 @@ DSH 的 profile 由“每个 bundle 的 patch + profile 自己的 `cordis.patch.
 
 ```yaml
 - insert:
-    - id: tool-app-bridge
-      name: './plugins/dsh-tool-app-bridge/lib/index.js'
+    - id: modelio-codesys-bridge
+      name: './plugins/modelio-codesys-bridge/lib/index.js'
 ```
 
 关键点：
@@ -39,7 +39,7 @@ DSH 的 profile 由“每个 bundle 的 patch + profile 自己的 `cordis.patch.
 1. `insert` 里的 entry 被追加到根列表（或 `id` 指定的 group 内）。
 2. `name` 以 `./`、`../` 或绝对路径开头时，加载器会**相对 patch 文件所在目录**解析成 `file:` URL。
    这就是为什么本地包不必进 npm：`$DSH_HOME/cordis.patch.yml` 里的 `./plugins/...` 会变成
-   `file:///.../harness/plugins/dsh-tool-app-bridge/lib/index.js`。
+   `file:///.../harness/plugins/modelio-codesys-bridge/lib/index.js`。
 3. 非 insert 的 patch 需要 `id`，用于改 `config`/`disabled`；同一 `id` 插入两次会得到
    duplicate loader entry 错误，所以安装方式必须三选一。
 4. `!!js` 表达式在 patch 里可用（本项目没有用到，保持可读）。
@@ -82,7 +82,7 @@ try:
         from org.modelio.api.modelio import Modelio
         _MS = Modelio.getInstance().getModelingSession()
         _MROOTS = _MS.getModel().getModelRoots()      # 先触碰模型，事务才可靠激活
-        _tx = _MS.createTransaction(u'dsh app-bridge batch')
+        _tx = _MS.createTransaction(u'modelio-codesys-bridge batch')
     for _n in ('system','projects','online','librarymanager','Modelio','modelingSession','selectedElements','coreSession'):
         try: _G[_n] = eval(_n)
         except: pass
@@ -152,7 +152,7 @@ const ok = !resultMissing
 - 所有写入通过 host 的 `fs` 服务完成，并显式传入 `sandboxPolicy.resolve({session})` 得到的策略；
   这样插件的写入行为与 Agent 自己的文件工具一致。
 - `scratch` 与 `policy` **每次调用重新解析**：`workspace-write` 下 scratch 落在
-  `workspaceRoot/.dsh/app-bridge`，`danger-full-access` 下落在 `%USERPROFILE%\.dsh\app-bridge`。
+  `workspaceRoot/.dsh/modelio-codesys-bridge`，`danger-full-access` 下落在 `%USERPROFILE%\.dsh\modelio-codesys-bridge`。
   早期版本把整个配置缓存起来，切换工作区后仍用旧目录，1.0.1 已修。
 - 目录创建不复用 `cmd mkdir`（引号转义问题），而是写一个 `.dsh-keep` 空文件——`fs.writeText`
   的原子写入自带 `mkdir -p` 父目录，行为稳定且受同一条策略约束。
@@ -160,7 +160,7 @@ const ok = !resultMissing
 ## 4. 包结构与构建方式
 
 ```
-dsh-tool-app-bridge/
+dsh-tool-modelio-codesys-bridge/
   package.json          name/version/exports/files + dsh.bundle.patch
   cordis.patch.yml      bundle patch（方式 C 用）
   lib/index.js          插件本体（自包含，约 900 行）

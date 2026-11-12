@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- 重命名为 **modelio-codesys-bridge**（包名 `dsh-tool-modelio-codesys-bridge`，composition row id
+  `modelio-codesys-bridge`，目录/技能名同名），名字直接说明用途：桥接 Modelio 4.1 与 CODESYS 3.5。
+- 默认 scratch 目录随之为 `%USERPROFILE%\.dsh\modelio-codesys-bridge`；旧的
+  `%USERPROFILE%\.dsh\app-bridge` 可删除，不影响运行。
+- 安装路径统一为 `$DSH_HOME/plugins/modelio-codesys-bridge/`；home patch 的 `id` 与 `name`
+  同步更新（重装时不要同时保留旧条目，否则同一 row 插入两次会报 loader 错误）。
+
 ## 1.0.1
 
 修复安装版实测发现的问题，并补充诊断能力：

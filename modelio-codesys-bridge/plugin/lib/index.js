@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// dsh app-bridge — an MCP-like bridge for Modelio 4.1 and CODESYS 3.5
+// modelio-codesys-bridge — an MCP-like bridge for Modelio 4.1 and CODESYS 3.5
 //
 // Both IDEs expose a scripting engine but no network/RPC surface. This plugin
 // turns each engine into a model-callable tool: the agent writes Python
@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 const CODESYS_ROOT = 'D:\\CODESYS 3.5'
 const MODELIO_ROOT = 'D:\\modelio'
-const SCRATCH_SUFFIX = '\\.dsh\\app-bridge'
+const SCRATCH_SUFFIX = '\\.dsh\\modelio-codesys-bridge'
 
 function pad2(n) {
   return n < 10 ? '0' + String(n) : String(n)
@@ -59,7 +59,7 @@ function pyLiteral(v) {
   return 'None'
 }
 
-const WRAPPER = String.raw`# dsh app-bridge wrapper (generated; edit the user script instead)
+const WRAPPER = String.raw`# modelio-codesys-bridge wrapper (generated; edit the user script instead)
 import sys, os, json, traceback
 _APP = u'@@APP@@'
 _RUN = @@RUN@@
@@ -100,7 +100,7 @@ try:
             from org.modelio.api.modelio import Modelio
             _MS = Modelio.getInstance().getModelingSession()
             _MROOTS = _MS.getModel().getModelRoots()
-            _tx = _MS.createTransaction(u'dsh app-bridge batch')
+            _tx = _MS.createTransaction(u'modelio-codesys-bridge batch')
         except:
             _tx = None
             _tx_err = traceback.format_exc()
@@ -171,7 +171,7 @@ finally:
 `
 
 const HELP_OVERVIEW = [
-  'dsh app-bridge — drive Modelio 4.1 (Jython batch) and CODESYS 3.5 (IronPython --runscript) from the agent.',
+  'modelio-codesys-bridge — drive Modelio 4.1 (Jython batch) and CODESYS 3.5 (IronPython --runscript) from the agent.',
   '',
   'Tools:',
   '  bridge_status  → detected installs, profile, workspaces, scratch dir',
@@ -187,7 +187,7 @@ const HELP_OVERVIEW = [
   '  Exit status is reported per-script: status=ok/error, error=traceback',
   '',
   'Every run gets an isolated run directory (reported as `runDir`; default <scratch>\\<app>\\<stamp>,',
-  'where scratch is %USERPROFILE%\\.dsh\\app-bridge or the workspace root under a workspace-write policy)',
+  'where scratch is %USERPROFILE%\\.dsh\\modelio-codesys-bridge or the workspace root under a workspace-write policy)',
   'containing user.py (your script) and run.py (the generated wrapper) — inspect them after a failure.',
   'Write scripts to a file yourself and pass `scriptPath` when the code is long or needs iteration.',
   '',
@@ -298,7 +298,7 @@ const HELP_MODELIO = [
   '    org.modelio.documentation.modelioapi_4.1.0.*.jar (html/ tree).',
 ].join('\n')
 
-export const name = 'tool-app-bridge'
+export const name = 'modelio-codesys-bridge'
 
 export const inject = ['fs', 'subprocess', 'timer']
 

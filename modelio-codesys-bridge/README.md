@@ -1,4 +1,4 @@
-# DSH app-bridge — Modelio 4.1 / CODESYS 3.5 通用桥
+# modelio-codesys-bridge — Modelio 4.1 / CODESYS 3.5 自动化桥
 
 把两个 Windows IDE 的脚本引擎包装成 **DeepSeek Harness（DSH）的常驻工具**：Agent 用 Python
 写操作，插件负责在独立目录里落地脚本、无界面启动 IDE、等待执行、收集 `RESULT`/stdout/异常/
@@ -57,12 +57,12 @@ Agent ──tool call──▶ DSH host ──plugin──▶ scratch/<app>/<sta
 
 ### A. 用户级 patch（推荐）
 
-把 `plugin/` 放到 `$DSH_HOME/plugins/dsh-tool-app-bridge/`，创建 `$DSH_HOME/cordis.patch.yml`：
+把 `plugin/` 放到 `$DSH_HOME/plugins/modelio-codesys-bridge/`，创建 `$DSH_HOME/cordis.patch.yml`：
 
 ```yaml
 - insert:
-    - id: tool-app-bridge
-      name: './plugins/dsh-tool-app-bridge/lib/index.js'
+    - id: modelio-codesys-bridge
+      name: './plugins/modelio-codesys-bridge/lib/index.js'
 ```
 
 重启 DSH 后所有 profile、所有会话都带这些工具。
@@ -82,12 +82,12 @@ dsh plugin --profile web add <本包绝对路径>
 ### 配置
 
 ```yaml
-- id: tool-app-bridge
-  name: './plugins/dsh-tool-app-bridge/lib/index.js'
+- id: modelio-codesys-bridge
+  name: './plugins/modelio-codesys-bridge/lib/index.js'
   config:
     codesysRoot: 'D:\CODESYS 3.5'     # 默认
     modelioRoot: 'D:\modelio'         # 默认
-    scratchDir: 'C:\Users\me\bridge'  # 默认 %USERPROFILE%\.dsh\app-bridge
+    scratchDir: 'C:\Users\me\bridge'  # 默认 %USERPROFILE%\.dsh\modelio-codesys-bridge
 ```
 
 ## 使用
@@ -156,7 +156,7 @@ SELFCHECK_SKIP_IDE=1 node plugin/scripts/selfcheck.mjs   # 只验证加载与注
 ## 卸载
 
 删除 patch 里的 `- insert:` 条目（或整个 patch 文件）并重启；如用方式 C 安装，
-`dsh plugin --profile web remove dsh-tool-app-bridge`。scratch 目录可随时整体删除。
+`dsh plugin --profile web remove dsh-tool-modelio-codesys-bridge`。scratch 目录可随时整体删除。
 
 ## License
 

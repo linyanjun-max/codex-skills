@@ -73,5 +73,5 @@ node plugin/scripts/selfcheck.mjs
 
 ## 清理
 
-scratch 目录可整体删除：`%USERPROFILE%\.dsh\app-bridge\`（或配置的 `scratchDir`）。
+scratch 目录可整体删除：`%USERPROFILE%\.dsh\modelio-codesys-bridge\`（或配置的 `scratchDir`）。
 `runDir` 里没有需要长期保留的状态。

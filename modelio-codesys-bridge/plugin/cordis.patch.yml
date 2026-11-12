@@ -1,4 +1,4 @@
-# Bundle patch for dsh-tool-app-bridge.
+# Bundle patch for dsh-tool-modelio-codesys-bridge.
 #
 # This file is applied when the package is listed in a profile's
 # `dsh.profile.bundles` (for example after
@@ -10,5 +10,5 @@
 # user patch layer ($DSH_HOME/cordis.patch.yml or the profile's
 # cordis.patch.yml). Inserting the same row id twice is a loader error.
 - insert:
-    - id: tool-app-bridge
+    - id: modelio-codesys-bridge
       name: './lib/index.js'
