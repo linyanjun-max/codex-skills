@@ -55,9 +55,31 @@ Agent ──tool call──▶ DSH host ──plugin──▶ scratch/<app>/<sta
 
 三种方式**只能选一种**（同一 row id 插入两次会报 loader 错误）。
 
-### A. 用户级 patch（推荐）
+### A. 作为 DSH 插件包安装（推荐）
 
-把 `plugin/` 放到 `$DSH_HOME/plugins/modelio-codesys-bridge/`，创建 `$DSH_HOME/cordis.patch.yml`：
+```bash
+# <本包绝对路径> 指向 modelio-codesys-bridge/plugin/
+dsh plugin --profile web add <本包绝对路径>
+```
+
+一条命令做三件事：
+
+1. 把 `dsh-tool-modelio-codesys-bridge` 加进 profile 的 `dependencies`；
+2. 把包名加入 `dsh.profile.bundles`（因为它声明了 `dsh.bundle.patch`）；
+3. 由包内 `cordis.patch.yml` 自动插入 `modelio-codesys-bridge` 行——**不需要手写 patch**。
+
+重启 DSH 后，设置 → 插件 → **插件列表 → 全局插件** 里能看到它；pnpm 以 `link:` 方式指向
+`%DSH_HOME%\plugins\modelio-codesys-bridge\`，改代码后重启即生效。
+
+卸载：
+
+```bash
+dsh plugin --profile web remove dsh-tool-modelio-codesys-bridge
+```
+
+### B. 用户级 patch（本地开发）
+
+把 `plugin/` 放到 `$DSH_HOME/plugins/modelio-codesys-bridge/`，在 `$DSH_HOME/cordis.patch.yml` 写：
 
 ```yaml
 - insert:
@@ -65,25 +87,18 @@ Agent ──tool call──▶ DSH host ──plugin──▶ scratch/<app>/<sta
       name: './plugins/modelio-codesys-bridge/lib/index.js'
 ```
 
-重启 DSH 后所有 profile、所有会话都带这些工具。
+### C. profile 级 patch
 
-### B. profile 级 patch
+写进 `$DSH_HOME/profiles/<name>/cordis.patch.yml`，路径相对该文件。
 
-把同样的 `- insert:` 写进 `$DSH_HOME/profiles/<name>/cordis.patch.yml`，路径相对该文件。
-
-### C. 作为 pnpm 插件
-
-```bash
-dsh plugin --profile web add <本包绝对路径>
-```
-
-`package.json` 声明了 `dsh.bundle.patch`，包内 `plugin/cordis.patch.yml` 会自动插入该行。
+> A 与 B/C 不要同时用；切到 A 安装后，请把 B/C 里的 insert 删掉，否则 row 会重复。
 
 ### 配置
 
+用 A 安装时，在 profile 的 `cordis.patch.yml` 里按 id 覆盖 `config`；用 B/C 时直接写在 insert 的 row 上：
+
 ```yaml
 - id: modelio-codesys-bridge
-  name: './plugins/modelio-codesys-bridge/lib/index.js'
   config:
     codesysRoot: 'D:\CODESYS 3.5'     # 默认
     modelioRoot: 'D:\modelio'         # 默认

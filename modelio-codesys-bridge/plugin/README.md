@@ -34,9 +34,28 @@ modelio_run  { project: "Demo", workspace: "C:\\ws", script: "..." }
 插件是按“composition patch 插入一行”的方式加载的。**同一 row id 插入两次会报 loader 错误**，
 所以下面三种方式互斥。
 
-### A. 用户级 patch（推荐；本机已用此方式安装）
+### A. 作为 DSH 插件包安装（推荐）
 
-在本机 `$DSH_HOME/cordis.patch.yml`（本机为
+```bash
+# 指向本包的 plugin/ 目录
+dsh plugin --profile web add <本包绝对路径>
+```
+
+`package.json` 声明了 `dsh.bundle.patch`，安装后：
+
+- 包名进入 profile 的 `dependencies`（pnpm 以 `link:` 指向本包目录）；
+- 包名进入 `dsh.profile.bundles`；
+- 包内 `cordis.patch.yml` 自动插入 `modelio-codesys-bridge` 行，**不用手写 patch**。
+
+重启后出现在 设置 → 插件 → **插件列表 → 全局插件**；卸载：
+
+```bash
+dsh plugin --profile web remove dsh-tool-modelio-codesys-bridge
+```
+
+### B. 用户级 patch（本地开发）
+
+在 `$DSH_HOME/cordis.patch.yml`（本机为
 `C:\Users\<用户>\AppData\Roaming\dsh-desktop\harness\cordis.patch.yml`）里加入：
 
 ```yaml
@@ -48,24 +67,17 @@ modelio_run  { project: "Demo", workspace: "C:\\ws", script: "..." }
 `./` 路径会相对 patch 文件解析成 file URL，因此只要把本包放在
 `$DSH_HOME/plugins/modelio-codesys-bridge/` 即可；重启 DSH 后所有 profile 都带这些工具。
 
-### B. profile 级 patch
+### C. profile 级 patch
 
 编辑 `$DSH_HOME/profiles/<name>/cordis.patch.yml`，同上加 `- insert: …`；
 把 `name` 写成本机绝对路径或相对 profile 目录的路径。
 
-### C. 作为 pnpm 插件安装（可分发给别人）
-
-```bash
-dsh plugin --profile web add <本包绝对路径>
-```
-
-`package.json` 声明了 `dsh.bundle.patch`，安装后包名会进入 `dsh.profile.bundles`，
-其自带的 `cordis.patch.yml` 自动插入 `modelio-codesys-bridge` 行。此方式下**不要**再用 A/B，
-否则重复插入。
+> 从 B/C 切到 A 时，记得删掉 B/C 里的 insert，否则同一 row 会插入两次。
 
 ## 配置
 
-行上的 `config:` 全部可选：
+用 A 安装时，在 profile 的 `cordis.patch.yml` 里按 id 覆盖 `config`；用 B/C 时写在 insert 的行上。
+字段全部可选：
 
 ```yaml
 config:

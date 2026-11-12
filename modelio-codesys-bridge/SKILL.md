@@ -186,7 +186,24 @@ $DSH_HOME/
 
 Three mutually exclusive ways — inserting the same row id twice is a loader error.
 
-**A. User-level patch (recommended).** Put the package at
+**A. As a DSH plugin package (recommended).**
+
+```bash
+dsh plugin --profile web add <absolute path to modelio-codesys-bridge/plugin/>
+```
+
+This adds `dsh-tool-modelio-codesys-bridge` to the profile's `dependencies`, appends it to
+`dsh.profile.bundles` (it declares `dsh.bundle.patch`), and the bundle's own
+`cordis.patch.yml` inserts the `modelio-codesys-bridge` row — no hand-written patch.
+pnpm installs it as a `link:` to `$DSH_HOME/plugins/modelio-codesys-bridge/`, so editing
+the package and restarting DSH is enough. The row then shows under
+Settings → Plugins → **Plugin list → Global plugins**. Remove it with:
+
+```bash
+dsh plugin --profile web remove dsh-tool-modelio-codesys-bridge
+```
+
+**B. User-level patch (local development).** Put the package at
 `$DSH_HOME/plugins/modelio-codesys-bridge/` and create `$DSH_HOME/cordis.patch.yml`:
 
 ```yaml
@@ -195,19 +212,16 @@ Three mutually exclusive ways — inserting the same row id twice is a loader er
       name: './plugins/modelio-codesys-bridge/lib/index.js'
 ```
 
-Restart DSH. The tools appear in every profile and every session.
-
-**B. Profile-level patch.** Same insert in
+**C. Profile-level patch.** Same insert in
 `$DSH_HOME/profiles/<name>/cordis.patch.yml`, with a path anchored to that file.
 
-**C. As a pnpm plugin.** `dsh plugin --profile web add <path to this package>`. The
-package declares `dsh.bundle.patch`, so its own `plugin/cordis.patch.yml` inserts the row.
+Do not combine A with B/C — remove the manual insert when switching to A.
 
-Config on the row is optional:
+Config: with A, override the row by id in the profile's `cordis.patch.yml`; with B/C, put
+`config` directly on the inserted row:
 
 ```yaml
 - id: modelio-codesys-bridge
-  name: './plugins/modelio-codesys-bridge/lib/index.js'
   config:
     codesysRoot: 'D:\CODESYS 3.5'     # default
     modelioRoot: 'D:\modelio'         # default
