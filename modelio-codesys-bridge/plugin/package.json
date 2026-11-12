@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-modelio-codesys-bridge",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Modelio 4.1 / CODESYS 3.5 bridge tools for DeepSeek Harness: headless Jython and IronPython scripting behind model-callable tools",
   "type": "module",
   "main": "lib/index.js",

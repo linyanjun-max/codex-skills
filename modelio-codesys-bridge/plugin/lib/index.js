@@ -300,7 +300,7 @@ const HELP_MODELIO = [
 
 export const name = 'modelio-codesys-bridge'
 
-export const inject = ['fs', 'subprocess', 'timer']
+export const inject = ['fs', 'subprocess', 'timer', 'tools']
 
 export function apply(ctx, config) {
 

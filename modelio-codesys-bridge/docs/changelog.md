@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- 修复 DSH 启动错误：插件用 `ctx.tools` 注册工具，却没有在 `inject` 中声明 `tools` 依赖，导致该
+  composition row 在启动时无法 apply。`inject` 现为 `['fs', 'subprocess', 'timer', 'tools']`。
+
 ## 1.0.2
 
 - 重命名为 **modelio-codesys-bridge**（包名 `dsh-tool-modelio-codesys-bridge`，composition row id
