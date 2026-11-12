@@ -1,0 +1,14 @@
+# Bundle patch for dsh-tool-app-bridge.
+#
+# This file is applied when the package is listed in a profile's
+# `dsh.profile.bundles` (for example after
+#   dsh plugin --profile web add <absolute path to this package>
+# appends it). It inserts the tool row at the host root, so every session of
+# that profile gets the bridge tools.
+#
+# Install ONE way only: either this bundle patch, or an explicit insert in the
+# user patch layer ($DSH_HOME/cordis.patch.yml or the profile's
+# cordis.patch.yml). Inserting the same row id twice is a loader error.
+- insert:
+    - id: tool-app-bridge
+      name: './lib/index.js'

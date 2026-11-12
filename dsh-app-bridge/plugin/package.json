@@ -1,0 +1,35 @@
+{
+  "name": "dsh-tool-app-bridge",
+  "version": "1.0.1",
+  "description": "Modelio 4.1 / CODESYS 3.5 bridge tools for DeepSeek Harness: headless Jython and IronPython scripting behind model-callable tools",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "scripts",
+    "README.md",
+    "cordis.patch.yml"
+  ],
+  "keywords": [
+    "dsh",
+    "cordis",
+    "deepseek-harness",
+    "modelio",
+    "codesys",
+    "plc",
+    "uml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "selfcheck": "node scripts/selfcheck.mjs"
+  }
+}
