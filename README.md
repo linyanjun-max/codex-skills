@@ -7,6 +7,7 @@ This repository contains reusable Codex skills.
 - `pdf-to-word-translation/` — complete translation of technical PDFs into Chinese Word documents.
 - `simulink-from-matlab/` — build a clear Simulink model from MATLAB simulation code and an assignment document, preserving plant variables, disturbances, sensors, predictive analysis, RUL, and alarms.
 - `modelio-codesys-bridge/` — a DeepSeek Harness host plugin (plus a usage skill) that drives **Modelio 4.1** (Jython batch) and **CODESYS 3.5** (IronPython headless) through five model-callable tools, with strict success reporting, transaction rollback, and a standalone self-check. See `modelio-codesys-bridge/README.md`.
+- `protege-ontology-bridge/` — a DeepSeek Harness host plugin that builds **OWL 2 ontologies** and reasons over them with **Protégé's own JVM and HermiT** through seven model-callable tools: validate a spec, emit `.owl`, check consistency, infer class membership, answer DL queries, and render a report. No `javac` and no GUI required. See `protege-ontology-bridge/README.md`.
 
 The original PDF translation skill remains available below.
 

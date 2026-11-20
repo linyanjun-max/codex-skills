@@ -1,0 +1,38 @@
+{
+  "name": "dsh-tool-protege-ontology-bridge",
+  "version": "1.0.0",
+  "description": "Protégé / OWL 2 ontology toolchain for DeepSeek Harness: build ontologies, reason with the Protégé-bundled HermiT, answer DL queries, and render a Russian lab report",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "engine",
+    "scripts",
+    "README.md",
+    "cordis.patch.yml"
+  ],
+  "keywords": [
+    "dsh",
+    "cordis",
+    "deepseek-harness",
+    "ontology",
+    "owl",
+    "protege",
+    "hermit",
+    "reasoner",
+    "dl-query"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "selfcheck": "node scripts/selfcheck.mjs"
+  }
+}
