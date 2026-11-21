@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3 — generic counts in the metrics note
+
+- The "object properties (14) = 7 declared + 7 inverses" sentence is now computed from the ontology and
+  the spec instead of being hardcoded, so any domain gets a truthful explanation.
+
+## 1.0.2 — real editor screenshots instead of diagrams
+
 ## 1.0.2 — real editor screenshots instead of diagrams
 
 - `spec.report.screenshots` accepts per-anchor lists of Protégé screenshots
