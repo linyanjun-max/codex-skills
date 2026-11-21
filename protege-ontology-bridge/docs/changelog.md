@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.1 — domain-neutral reports
+
+- **Report prose is no longer tied to one domain.** `spec.report` (all keys optional) overrides the cover
+  subtitle, the “chosen domain” sentence, the domain-description paragraphs, the individuals note, the DL
+  query note and the conclusion paragraphs. Missing keys fall back to text derived from the spec itself
+  (top-level class names, counts, defined-class names).
+- `spec.report` is now preserved by the spec normaliser (it used to be dropped, so overrides silently did
+  nothing and every report spoke about equipment maintenance).
+- Section 5 uses the ontology's own top-level classes as the disjointness example instead of a hardcoded
+  pair.
+
+## 1.0.0 — first release
+
 ## 1.0.0 — first release
 
 ### Tools

@@ -113,7 +113,9 @@ an empty set and look "correct".
 
 ## Report layer
 
-`report.py` clones a previously submitted `.docx` as the style donor (cover page, headings, table grid,
+`report.py` clones a previously submitted `.docx` as the style donor; every domain-specific
+sentence (cover subtitle, domain paragraphs, individuals/query notes, conclusions) comes from
+`spec["report"]` when present and falls back to spec-derived text otherwise (cover page, headings, table grid,
 body font), rewrites three cover paragraphs, drops the old body, then appends eight sections. Three figures
 are drawn with matplotlib at **print size** (`figsize` in inches ≈ the width Word will use), because a
 figure rendered at 22 inches and scaled down to 15.5 cm turns 9 pt labels into ~2 pt.

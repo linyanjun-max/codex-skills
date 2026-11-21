@@ -330,6 +330,10 @@ def normalize(raw: dict) -> tuple[dict, list[str]]:
         "classAxioms": axioms,
         "disjointGroups": disjoint_groups,
         "queries": queries,
+        # Optional domain prose for the report (subtitle, domain paragraphs,
+        # conclusion paragraphs). Carried through verbatim; the report treats
+        # every key as optional.
+        "report": raw.get("report") if isinstance(raw.get("report"), dict) else {},
         "warnings": warnings,
     }
     spec["counts"] = summarize(spec)["counts"]

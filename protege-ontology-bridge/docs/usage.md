@@ -68,6 +68,26 @@ A JSON file; see `onto_help { "topic": "spec" }` for every field. Minimal but la
 - Several `some`/`only` axioms; prefer **positive** definitions (see `docs/troubleshooting.md`).
 - 3–5 DL queries that answer real questions about the model.
 
+### Domain prose for the report
+
+The report body is domain-neutral by default. To make it speak about a concrete industry, add an optional
+`report` object to the spec — every key is optional:
+
+```json
+"report": {
+  "subtitle": "Онтология производства твёрдых лекарственных форм",
+  "domainTitle": "производство фармацевтических препаратов",
+  "scope": "В качестве предметной области выбрано …",
+  "domain": ["первый абзац раздела 4", "второй абзац", "третий абзац"],
+  "individualsNote": "чем примечателен набор индивидов",
+  "queriesNote": "на какие вопросы отвечают DL-запросы",
+  "conclusions": ["первый абзац выводов", "второй", "третий"]
+}
+```
+
+Missing keys fall back to text derived from the ontology (top-level classes, counts, defined classes), so
+switching domain never requires touching the engine.
+
 ## 3. Validate without the JVM
 
 ```text

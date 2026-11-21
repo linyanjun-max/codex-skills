@@ -98,6 +98,8 @@ onto_all { "spec": "D:/work/spec.json", "outdir": "D:/work/out" }
   "iri": "http://www.semanticweb.org/<you>/<project>",
   "label": "Ontology title",
   "language": "ru",
+  "report": {"subtitle": "Ontology subtitle", "domainTitle": "the domain in one phrase",
+             "domain": ["section 4 paragraph 1"], "conclusions": ["section 8 paragraph 1"]},
   "classes": [{"name": "Equipment", "parent": "Thing", "comment": "Оборудование"}],
   "disjointGroups": [["Equipment", "Failure", "Worker"]],
   "objectProperties": [{"name": "hasFailure", "domain": "Equipment", "range": "Failure",
@@ -120,6 +122,13 @@ Rules the engine enforces (and reports as errors):
 - `expression` uses Manchester syntax: `A and B`, `A or B`, `not A`, `p some C`, `p only C`, `p value v`,
   parentheses. Cardinality restrictions are not supported.
 - `ask`: `individuals` | `subclasses` | `superclasses` | `equivalent`.
+
+## Report prose
+
+The DOCX body is domain-neutral by default. `spec.report` overrides it field by field —
+`subtitle`, `domainTitle`, `scope`, `domain` (list of paragraphs), `individualsNote`, `queriesNote`,
+`conclusions` (list). Anything omitted falls back to text derived from the spec, so a new domain is a spec
+edit, not a code edit. Never hand-edit `engine/report.py` to change wording.
 
 ## Traps that silently destroy an ontology
 

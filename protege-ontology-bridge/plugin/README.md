@@ -84,6 +84,25 @@ node scripts/selfcheck.mjs                # 注册 + status + spec 校验
 node scripts/selfcheck.mjs --full spec.json   # 再跑 build + reason + report
 ```
 
+## 报告文字可以按领域覆盖
+
+报告正文默认是领域无关的表述，但课程作业需要具体领域文字。spec 里加一个可选的 `report` 对象即可覆盖，
+键都是可选的：
+
+```json
+"report": {
+  "subtitle": "副标题（封面第 3 行）",
+  "domainTitle": "报告里用来称呼该领域的一句话",
+  "scope": "第 1 节里“所选领域是……”的那段",
+  "domain": ["第 4 节第 1 段", "第 4 节第 2 段", "第 4 节第 3 段"],
+  "individualsNote": "6.2 节里对个体集合的说明",
+  "queriesNote": "7.3 节里对查询意图的说明",
+  "conclusions": ["第 8 节第 1 段", "第 8 节第 2 段", "第 8 节第 3 段"]
+}
+```
+
+未提供的键会退回由本体自身推导的通用文字（顶层类名、计数、定义类名），所以同一个 spec 换领域不需要改代码。
+
 ## 两个必须知道的建模陷阱（引擎已处理，但报告里值得写）
 
 - **`xsd:double` ≠ `xsd:float`**：断言写 `96.5` 默认生成 double 字面值；若属性 range 是 `xsd:float`，
