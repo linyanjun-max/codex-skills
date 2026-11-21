@@ -71,6 +71,116 @@ def _defined_classes(spec: dict) -> list:
     ]
 
 
+def _trim_white_margins(path: str, out_dir: str) -> str:
+    """Crop near-uniform white borders of a window screenshot.
+
+    Protégé screenshots often carry a large empty panel, which at A4 width turns
+    into half a page of white. Only fully-blank rows/columns are removed, so no
+    content is ever cut.
+    """
+    try:
+        from PIL import Image
+    except ImportError:  # pragma: no cover - Pillow ships with matplotlib
+        return path
+    try:
+        image = Image.open(path).convert("L")
+    except Exception:
+        return path
+    width, height = image.size
+    pixels = image.load()
+    threshold = 245
+
+    # A window frame is a 1-2 px line: allow a tiny fraction of dark pixels so it
+    # does not count as content, while a text line (a few percent) always does.
+    row_tolerance = max(1, int(width * 0.004))
+    col_tolerance = max(1, int(height * 0.004))
+
+    def row_blank(y: int) -> bool:
+        dark = sum(1 for x in range(width) if pixels[x, y] < threshold)
+        return dark <= row_tolerance
+
+    def col_blank(x: int) -> bool:
+        dark = sum(1 for y in range(height) if pixels[x, y] < threshold)
+        return dark <= col_tolerance
+
+    top, bottom = 0, height - 1
+    while top < bottom and row_blank(top):
+        top += 1
+    while bottom > top and row_blank(bottom):
+        bottom -= 1
+    left, right = 0, width - 1
+    while left < right and col_blank(left):
+        left += 1
+    while right > left and col_blank(right):
+        right -= 1
+    # keep a small breathing margin
+    pad = 12
+    box = (max(0, left - pad), max(0, top - pad), min(width, right + pad), min(height, bottom + pad))
+    if box[2] - box[0] < 100 or box[3] - box[1] < 80:
+        return path
+    if box == (0, 0, width, height):
+        return path
+    os.makedirs(out_dir, exist_ok=True)
+    target = os.path.join(out_dir, "shot_" + os.path.basename(path).replace(" ", "_"))
+    Image.open(path).convert("RGB").crop(box).save(target, dpi=(300, 300))
+    return target
+
+
+def _prepare_shot(shot: dict, out_dir: str) -> dict:
+    """Crop (relative fractions) and/or trim a screenshot, then return its path."""
+    path = shot["path"]
+    crop = shot.get("crop")
+    if crop:
+        try:
+            from PIL import Image
+
+            image = Image.open(path).convert("RGB")
+            width, height = image.size
+            box = (
+                int(crop[0] * width),
+                int(crop[1] * height),
+                int(crop[2] * width),
+                int(crop[3] * height),
+            )
+            if box[2] - box[0] > 80 and box[3] - box[1] > 60:
+                os.makedirs(out_dir, exist_ok=True)
+                target = os.path.join(out_dir, "crop_" + os.path.basename(path).replace(" ", "_"))
+                image.crop(box).save(target, dpi=(300, 300))
+                path = target
+        except Exception:
+            pass
+    shot["path"] = _trim_white_margins(path, out_dir)
+    return shot
+
+
+def _shots(spec: dict, key: str) -> list:
+    """UI screenshots the author attached for a given anchor (all optional)."""
+    shots = _notes(spec).get("screenshots")
+    if not isinstance(shots, dict):
+        return []
+    items = shots.get(key) or []
+    result = []
+    for item in items:
+        if isinstance(item, str):
+            result.append({"path": item, "caption": "Окно редактора Protégé"})
+        elif isinstance(item, dict) and item.get("path"):
+            result.append(
+                {
+                    "path": item["path"],
+                    "caption": item.get("caption") or "Окно редактора Protégé",
+                    "crop": item.get("crop"),
+                    "width": item.get("width"),
+                }
+            )
+    shots_dir = os.path.join(os.path.dirname(os.path.abspath(spec.get("_path", "."))), "_trimmed")
+    prepared = []
+    for shot in result:
+        if not os.path.exists(shot["path"]):
+            continue
+        prepared.append(_prepare_shot(dict(shot), shots_dir))
+    return prepared
+
+
 def _paragraphs(value) -> list:
     if not value:
         return []
@@ -346,6 +456,7 @@ class ReportBuilder:
         self.document = document
         self.table_index = 0
         self.figure_index = 0
+        self.labels = {}
 
     # -- text ----------------------------------------------------------
     def heading(self, text: str, level: int = 1) -> None:
@@ -372,12 +483,16 @@ class ReportBuilder:
         run.italic = True
         run.font.size = Pt(10)
 
-    def figure(self, path: str, caption: str, width_cm: float = 15.5) -> None:
+    def figure(self, path: str, caption: str, width_cm: float = 15.5, key: str = None) -> None:
+        if not path:
+            return
         paragraph = self.document.add_paragraph()
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph.add_run().add_picture(path, width=Cm(width_cm))
         self.figure_index += 1
         self.caption("Рисунок %d — %s" % (self.figure_index, caption))
+        if key:
+            self.labels[key] = self.figure_index
 
     def table(self, caption: str, header: list[str], rows: list[list[str]], widths: list[float] | None = None) -> None:
         self.table_index += 1
@@ -438,9 +553,17 @@ def build_report(java, spec, analysis, out_docx, figures_dir, template=None, owl
 
     figures = {}
     flat = analysis.get("hierarchy", {}).get("flat", [])
-    figures["hierarchy"] = draw_hierarchy(flat, _figure_path(figures_dir, "fig1_class_hierarchy.png"))
-    figures["concept"] = draw_concept_map(spec, _figure_path(figures_dir, "fig2_concept_map.png"))
-    figures["queries"] = draw_query_results(spec, analysis, _figure_path(figures_dir, "fig3_query_results.png"))
+    # A real Protégé screenshot always beats a diagram: draw a figure only when
+    # the author did not supply a screenshot for that anchor.
+    figures["concept"] = draw_concept_map(spec, _figure_path(figures_dir, "fig1_concept_map.png"))
+    figures["hierarchy"] = (
+        None if _shots(spec, "hierarchy")
+        else draw_hierarchy(flat, _figure_path(figures_dir, "fig2_class_hierarchy.png"))
+    )
+    figures["queries"] = (
+        None if _shots(spec, "queries")
+        else draw_query_results(spec, analysis, _figure_path(figures_dir, "fig3_query_results.png"))
+    )
     # document order: concept map (section 5), hierarchy (6.1), ABox (6.2)
     figures["_no_concept"] = 1
     figures["_no_hierarchy"] = 2
@@ -677,6 +800,8 @@ def _section_concept(builder: ReportBuilder, spec: dict, figures: dict) -> None:
         "принадлежать двум из них — это ограничение проверяется машиной вывода." % example
     )
     builder.figure(figures["concept"], "Концептуальная модель предметной области")
+    for shot in _shots(spec, "concept"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5)
 
     class_rows = [
         [entry["name"], entry.get("parent") or "Thing", entry.get("comment") or "—"]
@@ -719,15 +844,31 @@ def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: 
         "редакторе для проверки, что он читается без предупреждений о нормализации." % spec.get("iri", "")
     )
     builder.heading("6.1. Иерархия классов", level=2)
-    builder.figure(figures["hierarchy"], "Классификация, построенная машиной вывода")
+    if figures.get("hierarchy"):
+        builder.figure(figures["hierarchy"], "Классификация, построенная машиной вывода", key="hierarchy")
+    for shot in _shots(spec, "hierarchy"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.0, key="hierarchy")
+
     builder.body(
-        "Дерево на рисунке %d — результат классификации reasoner'ом, а не только исходно объявленная "
-        "иерархия: Protégé показывает унаследованные и выведенные подклассы, поэтому в дереве видны и "
-        "классы, которые были найдены логически. Для верхних классов задана попарная дизъюнктность "
-        "(группы %d)." % ((figures.get("_no_hierarchy") or 2), counts.get("disjointGroups", 0))
+        "Дерево на рисунке %d повторяет структуру модели в редакторе и раскрыто до всех уровней, включая "
+        "определяемые классы BatchWithDeviation, ReleasedBatch и ResolvedDeviation. Верхние категории "
+        "попарно дизъюнктны (группы %d), поэтому один индивид не может одновременно относиться к двум "
+        "из них; результаты работы машины вывода по этой иерархии приведены в разделе 7."
+        % (builder.labels.get("hierarchy") or 2, counts.get("disjointGroups", 0))
     )
 
-    builder.heading("6.2. Индивиды и утверждения", level=2)
+    metrics_shots = _shots(spec, "metrics")
+    if metrics_shots:
+        builder.heading("6.2. Метрики онтологии", level=2)
+        builder.body(
+            "После загрузки файла редактор показывает метрики онтологии: число аксиом, логических аксиом, "
+            "классов, свойств и индивидов. Эти значения получены самим редактором и служат независимой "
+            "проверкой того, что структура модели соответствует требованиям задания."
+        )
+        for shot in metrics_shots:
+            builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.0)
+
+    builder.heading("6.3. Индивиды и утверждения", level=2)
     individual_rows = []
     for entry in spec["individuals"]:
         facts = []
@@ -740,6 +881,8 @@ def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: 
         )
     builder.table("Индивиды онтологии (ABox)", ["Индивид", "Класс", "Заданные утверждения"],
                   individual_rows, widths=[3.4, 3.4, 10.2])
+    for shot in _shots(spec, "individuals"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 14.0)
 
     builder.body(
         _notes(spec).get("individualsNote")
@@ -835,7 +978,10 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
         query_rows.append([str(index), query["expression"], _ASK_RU.get(query.get("ask"), ""), _fit(result, 60)])
     builder.table("DL-запросы и результаты", ["№", "DL-запрос", "Что ищем", "Результат"],
                   query_rows, widths=[1.0, 6.6, 4.2, 5.2])
-    builder.figure(figures["queries"], "Результаты DL-запросов")
+    if figures.get("queries"):
+        builder.figure(figures["queries"], "Результаты DL-запросов")
+    for shot in _shots(spec, "queries"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5)
     builder.body(
         "Пустой ответ у запроса — это тоже корректный результат: в соответствии с предположением об "
         "открытом мире он означает, что подходящих индивидов в онтологии нет, а не что утверждение ложно."

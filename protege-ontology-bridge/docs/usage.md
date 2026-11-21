@@ -142,6 +142,26 @@ The DOCX contains: цель, задачи, краткие теоретическ
 To get a PDF, convert with Word (`Word.Application` COM) or LibreOffice—the engine deliberately writes only
 `.docx` so the style donor keeps its pagination.
 
+## Screenshots from Protégé
+
+Whenever a figure can be a real editor capture, use one — the engine prefers it over the generated
+diagram. Register screenshots in the spec:
+
+```json
+"report": {
+  "screenshots": {
+    "hierarchy":   [{"path": "D:/shots/class-tree.png", "caption": "…", "crop": [0, 0.03, 0.62, 0.72], "width": 15.5}],
+    "metrics":     [{"path": "D:/shots/metrics.png", "width": 13.2}],
+    "queries":     [{"path": "D:/shots/dl-query.png", "crop": [0.30, 0.07, 0.70, 0.39], "width": 14.2}],
+    "individuals": [{"path": "D:/shots/individuals.png"}],
+    "concept":     []
+  }
+}
+```
+
+`crop` is in relative fractions of the image, `width` in centimetres, `caption` becomes the figure
+caption. Anchors with a screenshot skip the generated figure; anchors without one keep it.
+
 ## 7. One-shot
 
 ```text

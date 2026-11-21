@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.2 — real editor screenshots instead of diagrams
+
+- `spec.report.screenshots` accepts per-anchor lists of Protégé screenshots
+  (`concept`, `hierarchy`, `metrics`, `individuals`, `queries`) with optional `crop`
+  (relative x0, y0, x1, y1), `width` in cm and a caption.
+- When a screenshot exists for an anchor, the corresponding generated figure is skipped:
+  a real editor capture always beats a matplotlib diagram. The concept map is still drawn,
+  because Protégé cannot produce it as a single view.
+- Uniform white margins are trimmed automatically and figures are numbered by key, so the
+  body text cites the number of whatever was actually inserted.
+- Section 6 gained a metrics subsection; figures order follows the document, not the code.
+
+## 1.0.1 — domain-neutral reports
+
 ## 1.0.1 — domain-neutral reports
 
 - **Report prose is no longer tied to one domain.** `spec.report` (all keys optional) overrides the cover

@@ -130,6 +130,13 @@ The DOCX body is domain-neutral by default. `spec.report` overrides it field by 
 `conclusions` (list). Anything omitted falls back to text derived from the spec, so a new domain is a spec
 edit, not a code edit. Never hand-edit `engine/report.py` to change wording.
 
+## Screenshots beat diagrams
+
+If the user can capture the Protégé window, register the captures in `spec.report.screenshots`
+(`hierarchy`, `metrics`, `queries`, `individuals`, `concept`) and regenerate: the engine inserts them and
+drops the corresponding matplotlib figure. Only the concept map stays generated, because Protégé has no
+single view that shows classes with labelled property edges.
+
 ## Traps that silently destroy an ontology
 
 1. **`xsd:double` vs `xsd:float`.** A float property declared `xsd:float` with a `96.5` literal becomes an
