@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4 — fix report generation
+
+- `_section_protege` now receives the reasoning payload: 1.0.3 raised `NameError: name 'analysis' is not
+  defined` and produced no DOCX at all. The metrics sentence needs `objectPropertyCount`, so the section
+  takes `analysis` as an argument.
+- Nothing else changed; `scripts/selfcheck.mjs --full` passes again (it runs the report step, which is why
+  the regression could not have survived a self-check run).
+
+## 1.0.3 — generic counts in the metrics note
+
 ## 1.0.3 — generic counts in the metrics note
 
 - The "object properties (14) = 7 declared + 7 inverses" sentence is now computed from the ontology and

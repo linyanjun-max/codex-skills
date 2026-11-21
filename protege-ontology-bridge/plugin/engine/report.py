@@ -586,7 +586,7 @@ def build_report(java, spec, analysis, out_docx, figures_dir, template=None, owl
     _section_theory(builder)
     _section_domain(builder, spec, counts)
     _section_concept(builder, spec, figures)
-    _section_protege(builder, spec, counts, figures)
+    _section_protege(builder, spec, counts, figures, analysis)
     _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, consistent, unsatisfiable, individual_types)
     _section_conclusions(builder, spec, analysis, counts, queries, consistent, unsatisfiable)
 
@@ -835,7 +835,7 @@ def _section_concept(builder: ReportBuilder, spec: dict, figures: dict) -> None:
     )
 
 
-def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: dict) -> None:
+def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: dict, analysis: dict) -> None:
     builder.heading("6. Построение онтологии в Protégé")
     builder.body(
         "Онтология создана в редакторе Protégé 5.6 с машиной вывода HermiT. Сначала задан IRI онтологии "
