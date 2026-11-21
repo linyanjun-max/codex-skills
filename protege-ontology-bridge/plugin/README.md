@@ -103,13 +103,6 @@ node scripts/selfcheck.mjs --full spec.json   # 再跑 build + reason + report
 
 未提供的键会退回由本体自身推导的通用文字（顶层类名、计数、定义类名），所以同一个 spec 换领域不需要改代码。
 
-## 截图优先于示意图
-
-`spec.report.screenshots` 可按锚点登记 Protégé 界面截图（`hierarchy` / `metrics` / `queries` /
-`individuals` / `concept`），支持 `crop`（相对比例）、`width`（厘米）与 `caption`。某个锚点有截图时，
-对应的 matplotlib 图不再生成——真实截图永远优先。只有概念图仍然是生成的，因为 Protégé 没有一张
-视图能同时显示类与带标签的属性边。
-
 ## 两个必须知道的建模陷阱（引擎已处理，但报告里值得写）
 
 - **`xsd:double` ≠ `xsd:float`**：断言写 `96.5` 默认生成 double 字面值；若属性 range 是 `xsd:float`，

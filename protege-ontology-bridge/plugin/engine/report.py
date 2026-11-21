@@ -863,7 +863,15 @@ def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: 
         builder.body(
             "После загрузки файла редактор показывает метрики онтологии: число аксиом, логических аксиом, "
             "классов, свойств и индивидов. Эти значения получены самим редактором и служат независимой "
-            "проверкой того, что структура модели соответствует требованиям задания."
+            "проверкой того, что структура модели соответствует требованиям задания. Счётчик объектных "
+            "свойств (%d) включает %d объявленных свойств и %d автоматически созданных обратных к ним, "
+            "поэтому в таблице 2 перечислены %d объектных свойств модели."
+            % (
+                analysis.get("objectPropertyCount", 0),
+                counts.get("objectProperties", 0),
+                max(0, analysis.get("objectPropertyCount", 0) - counts.get("objectProperties", 0)),
+                counts.get("objectProperties", 0),
+            )
         )
         for shot in metrics_shots:
             builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.0)
