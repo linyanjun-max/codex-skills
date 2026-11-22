@@ -10,6 +10,7 @@ the old body is replaced.
 from __future__ import annotations
 
 import os
+import re
 import textwrap
 
 import matplotlib
@@ -61,6 +62,39 @@ def _domain_title(spec: dict) -> str:
 def _subtitle(spec: dict) -> str:
     notes = _notes(spec)
     return notes.get("subtitle") or LAB_SUBTITLE
+
+
+_MANCHESTER_KEYWORDS = {
+    "and", "or", "not", "some", "only", "value", "min", "max", "exactly",
+    "inverse", "true", "false", "self",
+}
+
+
+def _ontology_prefix(spec: dict) -> str:
+    """The prefix Protégé shows for this ontology: the last IRI path segment."""
+    iri = (spec.get("iri") or "").strip().rstrip("#/")
+    return iri.rsplit("/", 1)[-1] or "ont"
+
+
+def _editor_expression(spec: dict, expression: str) -> str:
+    """Prefix every entity name so the string can be pasted into DL Query.
+
+    Protégé's DL Query editor does not accept bare names for a re-opened
+    document, so the report shows exactly what has to be typed there.
+    """
+    prefix = _ontology_prefix(spec)
+    entities = set()
+    for key in ("classes", "objectProperties", "dataProperties", "individuals"):
+        for entry in spec.get(key, []):
+            entities.add(entry["name"])
+
+    def replace(match):
+        word = match.group(0)
+        if word in entities:
+            return "%s:%s" % (prefix, word)
+        return word
+
+    return re.sub(r"[A-Za-z_][A-Za-z0-9_]*", replace, expression)
 
 
 def _defined_classes(spec: dict) -> list:
@@ -475,6 +509,10 @@ class ReportBuilder:
     def bullet(self, text: str) -> None:
         paragraph = self.document.add_paragraph(style="List Bullet")
         paragraph.add_run(text)
+
+    def page_break(self) -> None:
+        """Start a new page, so a whole section is never split at its tail."""
+        self.document.add_page_break()
 
     def caption(self, text: str) -> None:
         paragraph = self.document.add_paragraph()
@@ -975,17 +1013,25 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
     builder.body(
         _notes(spec).get("queriesNote")
         or (
-            "Запросы сформулированы в синтаксисе Manchester и выполнены в редакторе через вкладку DL "
-            "Query; ответы проверены независимо тем же reasoner'ом. Каждый запрос отвечает на "
-            "практический вопрос о состоянии модели, а не просто демонстрирует синтаксис."
+            "Запросы сформулированы в синтаксисе Manchester и приведены в том виде, в котором они "
+            "вводятся во вкладке DL Query редактора — с префиксом онтологии, поскольку без префикса "
+            "редактор не разрешает имена сущностей. Те же выражения (в форме без префикса) выполнены "
+            "программно тем же reasoner'ом, поэтому ответы ниже проверены независимо от интерфейса."
         )
     )
     query_rows = []
     for index, query in enumerate(queries, start=1):
         result = ", ".join(query.get("entities", [])) if query.get("entities") else "пусто"
-        query_rows.append([str(index), query["expression"], _ASK_RU.get(query.get("ask"), ""), _fit(result, 60)])
+        query_rows.append(
+            [
+                str(index),
+                _editor_expression(spec, query["expression"]),
+                _ASK_RU.get(query.get("ask"), ""),
+                _fit(result, 60),
+            ]
+        )
     builder.table("DL-запросы и результаты", ["№", "DL-запрос", "Что ищем", "Результат"],
-                  query_rows, widths=[1.0, 6.6, 4.2, 5.2])
+                  query_rows, widths=[0.9, 8.0, 3.2, 4.4])
     if figures.get("queries"):
         builder.figure(figures["queries"], "Результаты DL-запросов")
     for shot in _shots(spec, "queries"):
@@ -997,6 +1043,7 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
 
 
 def _section_conclusions(builder, spec, analysis, counts, queries, consistent, unsatisfiable) -> None:
+    builder.page_break()
     builder.heading("8. Выводы")
     custom = _paragraphs(_notes(spec).get("conclusions"))
     total_results = sum(len(q.get("entities", [])) for q in queries)

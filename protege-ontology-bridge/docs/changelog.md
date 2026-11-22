@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.6 — DL queries shown as typed in Protégé
+
+- The DL-query table renders every entity with the ontology prefix
+  (`pharma-production:Batch`, `pharma-production:hasDeviation …`), because Protégé's DL Query editor
+  rejects bare names for a re-opened document. The prefix is derived from the ontology IRI, so this works
+  for any spec.
+- The query column is wider, and section 8 (conclusions) starts on a new page so a whole section is never
+  split with two orphan lines.
+
+## 1.0.5 — document the Protégé DL Query UI pitfalls
+
 ## 1.0.5 — document the Protégé DL Query UI pitfalls
 
 - `docs/troubleshooting.md`: name-resolution error ("Expected one of: Class name …") with the four
