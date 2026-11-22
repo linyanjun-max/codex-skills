@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.7 — concept map can be a supplied image
+
+- A supplied `screenshots.concept` entry now **replaces** the generated concept map instead of being
+  appended after it. Previously the report showed both the drawn scheme and the supplied image.
+- Same rule as the other anchors: an image supplied by the author wins over a generated figure.
+
+## 1.0.6 — DL queries shown as typed in Protégé
+
 ## 1.0.6 — DL queries shown as typed in Protégé
 
 - The DL-query table renders every entity with the ontology prefix

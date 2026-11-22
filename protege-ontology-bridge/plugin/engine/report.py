@@ -593,7 +593,10 @@ def build_report(java, spec, analysis, out_docx, figures_dir, template=None, owl
     flat = analysis.get("hierarchy", {}).get("flat", [])
     # A real Protégé screenshot always beats a diagram: draw a figure only when
     # the author did not supply a screenshot for that anchor.
-    figures["concept"] = draw_concept_map(spec, _figure_path(figures_dir, "fig1_concept_map.png"))
+    figures["concept"] = (
+        None if _shots(spec, "concept")
+        else draw_concept_map(spec, _figure_path(figures_dir, "fig1_concept_map.png"))
+    )
     figures["hierarchy"] = (
         None if _shots(spec, "hierarchy")
         else draw_hierarchy(flat, _figure_path(figures_dir, "fig2_class_hierarchy.png"))
@@ -837,7 +840,8 @@ def _section_concept(builder: ReportBuilder, spec: dict, figures: dict) -> None:
         "взаимно дизъюнктные категории (%s), поэтому один и тот же индивид не может одновременно "
         "принадлежать двум из них — это ограничение проверяется машиной вывода." % example
     )
-    builder.figure(figures["concept"], "Концептуальная модель предметной области")
+    if figures.get("concept"):
+        builder.figure(figures["concept"], "Концептуальная модель предметной области", key="concept")
     for shot in _shots(spec, "concept"):
         builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5)
 
