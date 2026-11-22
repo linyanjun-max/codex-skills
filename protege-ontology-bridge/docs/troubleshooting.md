@@ -65,6 +65,33 @@ The Open World Assumption is at work. Two cases:
 A typo in a Manchester expression, or you used an inverse property that is not declared anywhere. Inverse
 names are accepted **if** some property declares them via `"inverse": "X"`.
 
+### DL Query: "Expected one of: Class name, Object property name …"
+
+Protégé could not resolve the name you typed. Four forms, in order of reliability:
+
+```text
+pharma-production:ReleasedBatch                                     # prefix from the prefixes tab
+:ReleasedBatch                                                      # default prefix
+<http://example.org/onto#ReleasedBatch>                             # full IRI, always resolves
+ReleasedBatch                                                       # bare name, needs a default prefix
+```
+
+If the prefix row (`:` → namespace) is present but bare names still fail, the DL Query view is bound to a
+different ontology document than the one you think (two tabs open after re-opening the file). `File → Close
+all`, reopen the `.owl` once, and use the prefixed form.
+
+### DL Query shows Subclasses but no Instances
+
+Two causes, both common after re-opening a file:
+
+1. **The reasoner is not running.** Re-opening an ontology resets it. `Reasoner → HermiT`, then
+   `Reasoner → Start reasoner`; the status bar must read `Reasoner active`. Without it Protégé can answer
+   asserted subclasses but not compute instances.
+2. **The `Instances` checkbox is unticked** in the right-hand *Query for* panel.
+
+A result of `Subclasses (1 of 1): owl:Nothing` is normal for a defined class with no subclasses — it is not
+an error.
+
 ### Reasoning is slow
 
 HermiT is worst on large disjunctions and cardinality restrictions. Keep the ontology DL-light for lab

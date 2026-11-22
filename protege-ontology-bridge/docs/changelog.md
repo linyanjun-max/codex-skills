@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.5 — document the Protégé DL Query UI pitfalls
+
+- `docs/troubleshooting.md`: name-resolution error ("Expected one of: Class name …") with the four
+  accepted forms, and the “Subclasses but no Instances” symptom (reasoner reset after re-opening a file,
+  unticked Instances checkbox).
+- No code change.
+
+## 1.0.4 — fix report generation
+
 ## 1.0.4 — fix report generation
 
 - `_section_protege` now receives the reasoning payload: 1.0.3 raised `NameError: name 'analysis' is not
