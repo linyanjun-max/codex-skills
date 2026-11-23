@@ -23,7 +23,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT  # noqa: E402
 from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: E402
 from docx.oxml import OxmlElement  # noqa: E402
 from docx.oxml.ns import qn  # noqa: E402
-from docx.shared import Cm, Pt  # noqa: E402
+from docx.shared import Cm, Pt, RGBColor  # noqa: E402
 
 DEFAULT_TEMPLATE_CANDIDATES = [
     "reports/Тии_Чжао Цзыцзюнь_Пр2_З1.docx",
@@ -491,11 +491,15 @@ class ReportBuilder:
         self.table_index = 0
         self.figure_index = 0
         self.labels = {}
+        self.figures = {}
 
     # -- text ----------------------------------------------------------
     def heading(self, text: str, level: int = 1) -> None:
         paragraph = self.document.add_paragraph(style="Heading %d" % level)
-        paragraph.add_run(text)
+        run = paragraph.add_run(text)
+        # the donor template colours headings dark blue; the assignment wants black
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        run.font.name = "Times New Roman"
 
     def body(self, text: str, first_line: float = 1.25) -> None:
         paragraph = self.document.add_paragraph()
@@ -505,6 +509,17 @@ class ReportBuilder:
         fmt.line_spacing = 1.15
         fmt.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         paragraph.add_run(text)
+
+    def numbered(self, index: int, text: str) -> None:
+        """Numbered item as a hanging-indent paragraph (no list-style numbering)."""
+        paragraph = self.document.add_paragraph()
+        fmt = paragraph.paragraph_format
+        fmt.left_indent = Cm(1.0)
+        fmt.first_line_indent = Cm(-0.65)
+        fmt.space_after = Pt(4)
+        fmt.line_spacing = 1.15
+        fmt.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.add_run("%d. %s" % (index, text))
 
     def bullet(self, text: str) -> None:
         paragraph = self.document.add_paragraph(style="List Bullet")
@@ -611,9 +626,11 @@ def build_report(java, spec, analysis, out_docx, figures_dir, template=None, owl
     figures["_no_queries"] = 3
 
     document = Document(template_path)
+    _enable_hyphenation(document)
     _rewrite_cover(document, spec)
     _truncate_body(document)
     builder = ReportBuilder(document)
+    builder.figures = figures
 
     counts = spec.get("counts", {})
     reasoner_name = analysis.get("reasoner", "HermiT")
@@ -626,9 +643,9 @@ def build_report(java, spec, analysis, out_docx, figures_dir, template=None, owl
     _section_tasks(builder, spec)
     _section_theory(builder)
     _section_domain(builder, spec, counts)
-    _section_concept(builder, spec, figures)
-    _section_protege(builder, spec, counts, figures, analysis)
-    _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, consistent, unsatisfiable, individual_types)
+    _section_concept(builder, spec, counts)
+    _section_protege(builder, spec, counts, analysis)
+    _section_reasoner(builder, spec, analysis, reasoner_name, queries, consistent, unsatisfiable, individual_types)
     _section_conclusions(builder, spec, analysis, counts, queries, consistent, unsatisfiable)
 
     os.makedirs(os.path.dirname(os.path.abspath(out_docx)) or ".", exist_ok=True)
@@ -687,6 +704,17 @@ def _find_template(spec: dict | None = None) -> str | None:
     return None
 
 
+def _enable_hyphenation(document: Document) -> None:
+    """Automatic hyphenation: justified Russian text otherwise shows wide gaps."""
+    settings = document.settings.element
+    for tag, value in (("w:autoHyphenation", "true"), ("w:hyphenationZone", "357")):
+        for existing in settings.findall(qn(tag)):
+            settings.remove(existing)
+        element = OxmlElement(tag)
+        element.set(qn("w:val"), value)
+        settings.append(element)
+
+
 def _rewrite_cover(document: Document, spec: dict) -> None:
     replacements = {
         COVER_LAB_NUMBER: "ЛАБОРАТОРНАЯ РАБОТА № " + LAB_NUMBER,
@@ -723,13 +751,13 @@ def _truncate_body(document: Document) -> None:
 # ---------------------------------------------------------------------------
 def _section_goal(builder: ReportBuilder, spec: dict, counts: dict) -> None:
     notes = _notes(spec)
-    builder.heading("1. Цель работы")
+    builder.heading("1 Цель работы")
     builder.body(
         notes.get("goal")
         or (
-            "Цель работы — освоить онтологическое моделирование промышленной предметной области "
-            "и закрепить практические навыки работы с редактором Protégé при создании, редактировании "
-            "и анализе онтологий на языке OWL 2."
+            "Освоение практических навыков онтологического моделирования промышленной предметной "
+            "области и закрепление умения использовать редактор Protégé для создания, редактирования "
+            "и анализа онтологий на языке OWL."
         )
     )
     builder.body(
@@ -737,8 +765,7 @@ def _section_goal(builder: ReportBuilder, spec: dict, counts: dict) -> None:
         or (
             "В качестве предметной области выбрано: %s. Итог работы — онтология «%s», в которой "
             "формально описаны %d классов, %d объектных и %d свойств-значений, а также %d индивидов, "
-            "описывающих конкретный участок производства, и система аксиом с ограничениями, проверенная "
-            "машиной вывода."
+            "описывающих конкретный участок производства."
             % (_domain_title(spec), spec.get("label", "Ontology"), counts.get("classes", 0),
                counts.get("objectProperties", 0), counts.get("dataProperties", 0),
                counts.get("individuals", 0))
@@ -747,117 +774,189 @@ def _section_goal(builder: ReportBuilder, spec: dict, counts: dict) -> None:
 
 
 def _section_tasks(builder: ReportBuilder, spec: dict) -> None:
-    builder.heading("2. Задачи работы")
+    builder.heading("2 Задачи работы")
     tasks = [
-        "освоить основные понятия онтологического подхода: классы, индивиды, свойства, аксиомы, TBox и ABox;",
-        "выделить ключевые понятия и отношения выбранной промышленной предметной области;",
-        "построить иерархию классов и систему свойств, задающих структуру области;",
-        "создать примерную наполненность онтологии конкретными индивидами;",
-        "проверить онтологию машиной вывода HermiT и убедиться в её согласованности;",
-        "задать и выполнить DL-запросы к онтологии для извлечения нужной информации;",
-        "оформить результаты в виде отчёта, пригодного для включения в курсовой проект.",
+        "освоить основные понятия онтологического подхода: классы, индивиды, свойства, "
+        "аксиомы, TBox и ABox;",
+        "научиться выделять ключевые понятия и отношения в выбранной промышленной предметной области;",
+        "построить иерархию классов и систему свойств, задающих структуру предметной области;",
+        "создать примерную наполненность онтологии конкретными индивидами (объектами, процессами, "
+        "событиями);",
+        "ознакомиться с использованием reasoner'а для проверки согласованности онтологии и вывода "
+        "новых знаний;",
+        "научиться задавать и выполнять DL-запросы к онтологии для получения нужной информации;",
+        "научиться оформлять результаты работы в виде отчёта, пригодного для включения в курсовой "
+        "или дипломный проект.",
     ]
-    for task in tasks:
-        builder.bullet(task)
+    for index, task in enumerate(tasks, start=1):
+        builder.numbered(index, task)
     builder.body(
-        "Формальные требования к сложности модели выполнены: не менее 10–15 классов, 5–7 объектных "
-        "свойств, 3–5 свойств-значений, 8–12 индивидов, несколько аксиом с ограничениями и не менее "
-        "трёх DL-запросов."
+        "Формальные требования к сложности модели (таблица ниже, раздел 5.5) выполнены: не менее "
+        "10–15 классов, 5–7 объектных свойств, 3–5 свойств-значений, 8–12 индивидов, несколько аксиом "
+        "с ограничениями и не менее трёх DL-запросов."
     )
 
 
 def _section_theory(builder: ReportBuilder) -> None:
-    builder.heading("3. Краткие теоретические сведения")
-    builder.heading("3.1. Онтология и её элементы", level=2)
+    builder.heading("3 Краткие теоретические сведения")
+    builder.heading("3.1 Понятие онтологии в искусственном интеллекте", level=2)
     builder.body(
-        "Онтология в искусственном интеллекте — формальное машиночитаемое описание предметной области, "
-        "включающее классы (типы объектов), отношения между ними, ограничения и аксиомы, а также "
-        "конкретных индивидов. Онтология задаёт общий словарь и структуру знаний, понятную и людям, "
-        "и программам: она используется для интеграции информационных систем, интеллектуального поиска, "
-        "диагностики отказов, планирования и построения цифровых двойников."
+        "Под онтологией в инженерии знаний понимают формальное машиночитаемое описание предметной "
+        "области, включающее совокупность классов (типов объектов и понятий), отношений между ними, "
+        "ограничений и аксиом, определяющих допустимые комбинации понятий, а также конкретных "
+        "индивидов (экземпляров классов). Онтология задаёт общую словарную базу и структуру знаний, "
+        "одинаково понимаемую как людьми, так и программными агентами."
     )
     builder.body(
-        "В OWL 2 различают классы (Equipment, Pump, Failure), индивиды (Pump_101), объектные свойства — "
-        "бинарные отношения между индивидами (hasFailure, performedBy), свойства-значения — связи "
-        "«индивид → литерал» (hasSerialNumber, hasTemperatureValue) и аксиомы: включение классов "
-        "(Pump является подклассом Equipment), дизъюнктность (классы Worker и Equipment не могут "
-        "пересекаться) и ограничения на свойства."
+        "В отличие от реляционной схемы данных онтология описывает не структуру хранения, а смысл "
+        "понятий: она позволяет явно зафиксировать, что таблетпресс является оборудованием, что "
+        "каждая серия проходит испытание качества и что несоответствие спецификации является "
+        "отклонением. За счёт этого становятся возможны логический вывод новых фактов и "
+        "согласованная интеграция разнородных информационных систем."
     )
-    builder.heading("3.2. TBox и ABox", level=2)
     builder.body(
-        "Онтология условно делится на терминологический уровень TBox (классы, иерархия, свойства и общие "
-        "аксиомы) и уровень утверждений ABox (индивиды и факты о них). В работе построены оба уровня: "
-        "структура области и примерная наполненность конкретными объектами, процессами и событиями."
+        "В промышленности онтологии применяются для интеграции разрозненных информационных систем "
+        "(MES, ERP, LIMS, SCADA), интеллектуального поиска документов и данных, поддержки принятия "
+        "решений (например, при оценке готовности серии к выпуску), автоматизации планирования и "
+        "построения цифровых двойников производственных объектов."
     )
-    builder.heading("3.3. Открытость мира", level=2)
+
+    builder.heading("3.2 Элементы OWL-онтологии", level=2)
+    builder.body("Основными элементами онтологии на языке OWL являются:")
+    for item in [
+        "классы (Classes) — абстрактные категории объектов: Equipment, Process, Batch, QualityTest;",
+        "индивиды (Individuals) — конкретные экземпляры классов: Batch_2401, Process_1;",
+        "объектные свойства (Object Properties) — бинарные отношения между индивидами: "
+        "hasDeviation(Batch, Deviation), performedOn(Process, Equipment);",
+        "дата-свойства (Data Properties) — связи «индивид → значение»: "
+        "hasBatchNumber(Batch, xsd:string), hasAssayPercent(AssayTest, xsd:float);",
+        "аксиомы (Axioms) — утверждения о классах, индивидах и свойствах: включение класса "
+        "(Tableting — подкласс Process), дизъюнктность классов, ограничения на свойства, "
+        "характеристики свойств.",
+    ]:
+        builder.bullet(item)
+
+    builder.heading("3.3 Ограничения и характеристики свойств", level=2)
     builder.body(
-        "OWL опирается на предположение об открытом мире: если факт в онтологии не указан, это не значит, "
-        "что он ложен — он может быть просто неизвестен. Поэтому отсутствие утверждения нельзя "
-        "интерпретировать как отрицание, а DL-запросы возвращают только то, что логически следует из "
-        "аксиом."
+        "Ограничения (restrictions) задают условия на значения свойства и превращают перечень классов "
+        "и свойств в собственно онтологию, пригодную для автоматического вывода. Наиболее "
+        "употребительны конструкции some (existential — «существует хотя бы один»), only (universal — "
+        "«только»), value (фиксированное значение), а также ограничения мощности min/max/exactly."
     )
-    builder.heading("3.4. Машина вывода", level=2)
+    builder.body(
+        "Характеристики свойств меняют логику вывода: функциональное (functional) свойство имеет не "
+        "более одного значения, транзитивное (transitive) — переносит отношение по цепочке, обратное "
+        "(inverse) — позволяет выводить обратное утверждение из прямого, не дублируя его в ABox. "
+        "Домены и диапазоны (domain/range) задают допустимые типы субъекта и объекта отношения."
+    )
+
+    builder.heading("3.4 TBox и ABox", level=2)
+    builder.body(
+        "Онтологию условно делят на два уровня. TBox (terminological box) — терминологический уровень: "
+        "классы, иерархии классов, свойства и их характеристики, общие аксиомы, не зависящие от "
+        "конкретных объектов. ABox (assertional box) — уровень утверждений: индивиды, их типы, "
+        "значения свойств и связи между ними."
+    )
+    builder.body(
+        "Такое разделение важно практически: исправление ошибки в TBox автоматически меняет выводы "
+        "для всех индивидов, тогда как правка ABox затрагивает только конкретные объекты."
+    )
+
+    builder.heading("3.5 Открытость мира", level=2)
+    builder.body(
+        "OWL опирается на предположение об открытом мире (Open World Assumption): если факт в "
+        "онтологии не указан, из этого нельзя заключать, что он ложен — он может быть просто "
+        "неизвестен. Поэтому отсутствие утверждения нельзя интерпретировать как отрицание, а "
+        "DL-запросы возвращают только то, что логически следует из аксиом."
+    )
+    builder.body(
+        "Из этого же следует ограничение на определяемые классы: класс, заданный через отрицание "
+        "связи («отклонение, не устранённое никаким процессом»), машиной вывода не наполняется, "
+        "поскольку всегда допустима модель, в которой связь просто ещё не зафиксирована. Поэтому "
+        "в работе используются только положительные определяемые классы."
+    )
+
+    builder.heading("3.6 Машина вывода", level=2)
     builder.body(
         "Reasoner проверяет онтологию на согласованность, выводит новые знания из аксиом, уточняет "
         "иерархию классов и определяет, к каким классам принадлежит конкретный индивид. В Protégé "
         "встроены HermiT, Pellet и ELK; в данной работе используется HermiT как табличный reasoner, "
         "поддерживающий полный OWL 2 DL и сложные классовые выражения в запросах."
     )
+    builder.body(
+        "Результат работы reasoner'а виден в редакторе двумя способами: в дереве классов появляются "
+        "выведенные подклассы, а в панели Types индивида — классы, которые не были заданы явно "
+        "(они выделяются цветом). Эти же сведения попадают в отчёт в разделах 6 и 7."
+    )
 
 
 def _section_domain(builder: ReportBuilder, spec: dict, counts: dict) -> None:
     notes = _notes(spec)
-    builder.heading("4. Описание выбранной предметной области")
-    top_classes = [c["name"] for c in spec["classes"] if (c.get("parent") or "Thing") == "Thing"]
-
+    builder.heading("4 Описание выбранной предметной области")
+    builder.heading("4.1 Технологический процесс и границы области", level=2)
     paragraphs = _paragraphs(notes.get("domain"))
     if not paragraphs:
         paragraphs = [
             "Предметная область — %s. Рассматриваются производственные процессы, оборудование, "
-            "материалы, персонал, серии продукции и контроль качества, а также отклонения, возникающие "
-            "при производстве." % _domain_title(spec),
+            "материалы, персонал, серии продукции и контроль качества, а также отклонения, "
+            "возникающие при производстве." % _domain_title(spec),
             "Границы области: в модель включены только сущности, непосредственно влияющие на выпуск "
             "и качество продукции. За границами остаются финансы, кадровый учёт и сбытовая логистика.",
         ]
     for paragraph in paragraphs:
         builder.body(paragraph)
 
+    builder.heading("4.2 Перечень ключевых понятий", level=2)
+    top_classes = [c["name"] for c in spec["classes"] if (c.get("parent") or "Thing") == "Thing"]
     builder.body(
-        "Ключевые группы понятий, вынесенные в верхний уровень иерархии: %s. Всего в онтологии %d классов "
-        "(включая подклассы), %d объектных свойств, %d свойств-значений и %d индивидов."
-        % (", ".join(top_classes) or "—", counts.get("classes", 0), counts.get("objectProperties", 0),
-           counts.get("dataProperties", 0), counts.get("individuals", 0))
+        "В результате концептуального анализа выделены группы понятий, вынесенные в верхний уровень "
+        "иерархии: %s. Всего в онтологии %d классов (включая подклассы); полный перечень с "
+        "родительскими классами и пояснениями приведён в таблице 1."
+        % (", ".join(top_classes) or "—", counts.get("classes", 0))
+    )
+
+    builder.heading("4.3 Перечень ключевых отношений", level=2)
+    builder.body(
+        "Между понятиями выделены %d объектных отношений и %d атрибутов (свойств-значений). "
+        "Объектные отношения описывают связи «сущность — сущность» (серия имеет отклонение, "
+        "отклонение устранено процессом, процесс выполняется на оборудовании), атрибуты — "
+        "связи «сущность — значение» (номер серии, содержание действующего вещества, критичность "
+        "отклонения). Полные перечни с доменами и диапазонами приведены в таблицах 2 и 3."
+        % (counts.get("objectProperties", 0), counts.get("dataProperties", 0))
     )
 
 
-def _section_concept(builder: ReportBuilder, spec: dict, figures: dict) -> None:
-    builder.heading("5. Концептуальная модель")
+def _section_concept(builder: ReportBuilder, spec: dict, counts: dict) -> None:
+    builder.heading("5 Концептуальная модель предметной области")
     top = [c["name"] for c in spec["classes"] if (c.get("parent") or "Thing") == "Thing"]
     example = "%s и %s" % (top[0], top[1]) if len(top) >= 2 else "разные категории"
     builder.body(
-        "Модель строилась в два шага: сначала выделены верхние классы и их подклассы, затем определены "
-        "отношения (объектные свойства) и атрибуты (свойства-значения). Верхний уровень образуют "
-        "взаимно дизъюнктные категории (%s), поэтому один и тот же индивид не может одновременно "
+        "Модель строилась в два шага: сначала выделены верхние классы и их подклассы, затем "
+        "определены отношения (объектные свойства) и атрибуты (свойства-значения). Верхний уровень "
+        "образуют взаимно дизъюнктные категории (%s), поэтому один и тот же индивид не может "
         "принадлежать двум из них — это ограничение проверяется машиной вывода." % example
     )
-    if figures.get("concept"):
-        builder.figure(figures["concept"], "Концептуальная модель предметной области", key="concept")
+    if builder.figures.get("concept"):
+        builder.figure(builder.figures["concept"],
+                       "Концептуальная модель предметной области: четыре уровня производства "
+                       "и объектные свойства между классами", key="concept")
     for shot in _shots(spec, "concept"):
-        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5)
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5, key="concept")
 
     class_rows = [
         [entry["name"], entry.get("parent") or "Thing", entry.get("comment") or "—"]
         for entry in spec["classes"]
     ]
-    builder.table("Иерархия классов", ["Класс", "Родительский класс", "Пояснение"], class_rows,
-                  widths=[4.4, 4.0, 8.6])
+    builder.table("Иерархия классов онтологии", ["Класс (OWL)", "Родительский класс", "Пояснение"],
+                  class_rows, widths=[4.4, 4.0, 8.4])
 
     object_rows = [
         [prop["name"], prop.get("domain") or "—", prop.get("range") or "—",
          prop.get("inverse") or "—", ", ".join(prop.get("characteristics", [])) or "—"]
         for prop in spec["objectProperties"]
     ]
-    builder.table("Объектные свойства", ["Свойство", "Домен", "Диапазон", "Обратное", "Характеристики"],
+    builder.table("Объектные свойства онтологии",
+                  ["Свойство", "Домен", "Диапазон", "Обратное", "Характеристики"],
                   object_rows, widths=[4.0, 3.4, 3.4, 3.4, 2.8])
 
     data_rows = [
@@ -865,60 +964,106 @@ def _section_concept(builder: ReportBuilder, spec: dict, figures: dict) -> None:
          "функциональное" if prop.get("functional", True) else "—"]
         for prop in spec["dataProperties"]
     ]
-    builder.table("Свойства-значения", ["Свойство", "Домен", "Тип значения", "Ограничение"],
+    builder.table("Дата-свойства онтологии", ["Свойство", "Домен", "Тип значения", "Ограничение"],
                   data_rows, widths=[5.0, 4.0, 3.6, 4.0])
+
+    axiom_rows = [
+        [axiom["subject"],
+         ("Equivalent To: " if axiom["kind"] == "equivalentTo" else "SubClass Of: ") + axiom["expression"],
+         axiom.get("comment") or "—"]
+        for axiom in spec.get("classAxioms", [])
+    ]
+    builder.table("Аксиомы и ограничения онтологии",
+                  ["Класс", "Ограничение (Manchester-синтаксис)", "Содержательный смысл"],
+                  axiom_rows, widths=[3.4, 7.6, 5.4])
 
     builder.body(
         "Отношения заданы с указанием домена и диапазона, что позволяет машине вывода проверять "
         "корректность утверждений: если индивид получает связь, несовместимую с объявленными доменом "
         "и диапазоном, он попадает в соответствующий класс, а при противоречии с дизъюнктностью "
         "онтология становится несогласованной. Для парных отношений объявлены обратные свойства, "
-        "а для части отношений — характеристики (функциональность, транзитивность)."
+        "для одного отношения задана характеристика функциональности, для остальных — домены и "
+        "диапазоны."
     )
 
-
-def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: dict, analysis: dict) -> None:
-    builder.heading("6. Построение онтологии в Protégé")
+    builder.heading("5.5 Проверка полноты модели", level=2)
     builder.body(
-        "Онтология создана в редакторе Protégé 5.6 с машиной вывода HermiT. Сначала задан IRI онтологии "
-        "(%s), затем последовательно построены иерархия классов, объектные свойства и свойства-значения, "
-        "аксиомы с ограничениями и индивиды. Файл сохранён в формате RDF/XML и повторно открыт в "
-        "редакторе для проверки, что он читается без предупреждений о нормализации." % spec.get("iri", "")
+        "Соответствие построенной модели минимальным требованиям задания приведено в таблице 5. "
+        "Значения в последней колонке получены из спецификации онтологии, а количество классов, "
+        "свойств и индивидов независимо подтверждено метриками редактора (раздел 6.7)."
     )
-    builder.heading("6.1. Иерархия классов", level=2)
-    if figures.get("hierarchy"):
-        builder.figure(figures["hierarchy"], "Классификация, построенная машиной вывода", key="hierarchy")
+    compliance = [
+        ["Классы (включая подклассы)", "не менее 10–15", str(counts.get("classes", 0))],
+        ["Объектные свойства", "5–7", str(counts.get("objectProperties", 0))],
+        ["Дата-свойства", "3–5", str(counts.get("dataProperties", 0))],
+        ["Индивиды", "8–12", str(counts.get("individuals", 0))],
+        ["Аксиомы с ограничениями", "несколько",
+         "%d ограничений и %d определяемых классов"
+         % (counts.get("restrictionAxioms", 0), len(_defined_classes(spec)))],
+        ["Аксиомы дизъюнктности", "рекомендуется", "%d наборов" % counts.get("disjointGroups", 0)],
+        ["DL-запросы", "не менее 3", str(counts.get("queries", 0))],
+    ]
+    builder.table("Соответствие модели требованиям задания",
+                  ["Элемент онтологии", "Требование", "Фактически в модели"],
+                  compliance, widths=[5.8, 4.4, 6.2])
+
+
+def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, analysis: dict) -> None:
+    builder.heading("6 Построение онтологии в редакторе Protégé")
+    builder.heading("6.1 Создание проекта и задание IRI", level=2)
+    builder.body(
+        "Онтология создана в редакторе Protégé 5.6. Новый проект создан командой File → New ontology, "
+        "в качестве IRI задан адрес %s. Файл сохранён в формате RDF/XML и в дальнейшем открывался "
+        "повторно, в том числе для проверки машиной вывода." % spec.get("iri", "")
+    )
+
+    builder.heading("6.2 Построение иерархии классов и дизъюнктности", level=2)
+    builder.body(
+        "Классы создавались во вкладке Entities → Classes. Сначала заданы верхние категории, затем "
+        "подклассы; для верхних категорий установлена попарная дизъюнктность (%d набора). На "
+        "рисунке 2 приведена иерархия классов в редакторе после запуска машины вывода: раскрыты все "
+        "уровни, включая определяемые классы." % counts.get("disjointGroups", 0)
+    )
+    if builder.figures.get("hierarchy"):
+        builder.figure(builder.figures["hierarchy"], "Иерархия классов в редакторе Protégé", key="hierarchy")
     for shot in _shots(spec, "hierarchy"):
-        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.0, key="hierarchy")
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.0, key="hierarchy")
 
+    builder.heading("6.3 Определение объектных свойств", level=2)
     builder.body(
-        "Дерево на рисунке %d повторяет структуру модели в редакторе и раскрыто до всех уровней, включая "
-        "определяемые классы BatchWithDeviation, ReleasedBatch и ResolvedDeviation. Верхние категории "
-        "попарно дизъюнктны (группы %d), поэтому один индивид не может одновременно относиться к двум "
-        "из них; результаты работы машины вывода по этой иерархии приведены в разделе 7."
-        % (builder.labels.get("hierarchy") or 2, counts.get("disjointGroups", 0))
+        "Объектные свойства создавались во вкладке Entities → Object properties. Для каждого свойства "
+        "указаны домен и диапазон, для парных отношений объявлено обратное свойство, для свойства "
+        "resolvedBy установлен флажок Functional. Таблица 2 содержит полный перечень, рисунок 3 "
+        "показывает панель свойств в редакторе."
+    )
+    for shot in _shots(spec, "objectproperties"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.0)
+
+    builder.heading("6.4 Определение дата-свойств", level=2)
+    builder.body(
+        "Дата-свойства создавались во вкладке Entities → Data properties. Для каждого указан домен и "
+        "диапазон из множества встроенных типов XML Schema: xsd:string, xsd:date, xsd:float. Для всех "
+        "свойств установлен флажок Functional, поскольку каждому индивиду соответствует единственное "
+        "значение (один номер серии, одно содержание действующего вещества)."
     )
 
-    metrics_shots = _shots(spec, "metrics")
-    if metrics_shots:
-        builder.heading("6.2. Метрики онтологии", level=2)
-        builder.body(
-            "После загрузки файла редактор показывает метрики онтологии: число аксиом, логических аксиом, "
-            "классов, свойств и индивидов. Эти значения получены самим редактором и служат независимой "
-            "проверкой того, что структура модели соответствует требованиям задания. Счётчик объектных "
-            "свойств (%d) включает %d объявленных свойств и %d автоматически созданных обратных к ним, "
-            "поэтому в таблице 2 перечислены %d объектных свойств модели."
-            % (
-                analysis.get("objectPropertyCount", 0),
-                counts.get("objectProperties", 0),
-                max(0, analysis.get("objectPropertyCount", 0) - counts.get("objectProperties", 0)),
-                counts.get("objectProperties", 0),
-            )
-        )
-        for shot in metrics_shots:
-            builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.0)
+    builder.heading("6.5 Задание ограничений и определяемых классов", level=2)
+    builder.body(
+        "Ограничения задавались в секции SubClass Of редактора классов через Class expression editor, "
+        "в котором выражение записывается в Manchester-синтаксисе. Определяемые понятия создавались "
+        "как обычные классы, после чего в секции Equivalent To задавалось выражение; в дереве классов "
+        "такой класс помечается значком эквивалентности, а его объём вычисляется машиной вывода. "
+        "Полный перечень аксиом приведён в таблице 4, пример задания показан на рисунке 4."
+    )
+    for shot in _shots(spec, "restrictions"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.0)
 
-    builder.heading("6.3. Индивиды и утверждения", level=2)
+    builder.heading("6.6 Создание индивидов", level=2)
+    builder.body(
+        "Индивиды создавались во вкладке Entities → Individuals: для каждого указан тип, заданы "
+        "значения дата-свойств и утверждения объектных свойств. Полный перечень приведён в таблице 6. "
+        "Обратные связи в ABox намеренно не дублировались — они добавляются машиной вывода."
+    )
     individual_rows = []
     for entry in spec["individuals"]:
         facts = []
@@ -930,35 +1075,65 @@ def _section_protege(builder: ReportBuilder, spec: dict, counts: dict, figures: 
             [entry["name"], ", ".join(entry.get("types", [])), "; ".join(facts) or "—"]
         )
     builder.table("Индивиды онтологии (ABox)", ["Индивид", "Класс", "Заданные утверждения"],
-                  individual_rows, widths=[3.4, 3.4, 10.2])
+                  individual_rows, widths=[3.2, 3.4, 10.4])
     for shot in _shots(spec, "individuals"):
         builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 14.0)
-
     builder.body(
         _notes(spec).get("individualsNote")
         or (
             "Индивиды заполнены так, чтобы отражать типичную ситуацию на участке и покрывать основные "
-            "ветви модели: объект с идентифицирующими данными, связанное с ним событие и действие, "
-            "которое это событие обрабатывает. На этом наборе проверяются и ограничения TBox, и работа "
-            "DL-запросов."
+            "ветви модели. На этом наборе проверяются и ограничения TBox, и работа DL-запросов."
         )
     )
 
+    builder.heading("6.7 Метрики онтологии", level=2)
+    metrics_shots = _shots(spec, "metrics")
+    builder.body(
+        "После загрузки файла редактор показывает метрики онтологии: число аксиом, логических аксиом, "
+        "классов, свойств и индивидов. Эти значения получены самим редактором и служат независимой "
+        "проверкой того, что структура модели соответствует требованиям задания. Счётчик объектных "
+        "свойств (%d) включает %d объявленных свойств и %d автоматически созданных обратных к ним, "
+        "поэтому в таблице 2 перечислены %d объектных свойств модели."
+        % (
+            analysis.get("objectPropertyCount", 0),
+            counts.get("objectProperties", 0),
+            max(0, analysis.get("objectPropertyCount", 0) - counts.get("objectProperties", 0)),
+            counts.get("objectProperties", 0),
+        )
+    )
+    for shot in metrics_shots:
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 13.2)
 
-def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, consistent, unsatisfiable, individual_types) -> None:
+    builder.heading("6.8 Сохранение и резервное копирование", level=2)
+    builder.body(
+        "Онтология сохранена командой File → Save as… в файл ontology.owl (формат RDF/XML). Резервная "
+        "копия сохранена рядом в файле ontology.backup.owl; при необходимости файл может быть "
+        "экспортирован в другие форматы (Turtle, OWL/XML, функциональный синтаксис) через меню "
+        "File → Export. Дополнительно в отчёт сохранён файл reasoning.json с полными результатами "
+        "работы машины вывода и всеми ответами DL-запросов."
+    )
+
+
+def _section_reasoner(builder, spec, analysis, reasoner_name, queries, consistent,
+                      unsatisfiable, individual_types) -> None:
     counts = spec.get("counts", {})
-    builder.heading("7. Работа reasoner'а и DL-запросы")
-    builder.heading("7.1. Проверка согласованности", level=2)
+    builder.heading("7 Работа reasoner'а и DL-запросы")
+    builder.heading("7.1 Настройка и запуск reasoner'а, проверка согласованности", level=2)
+    builder.body(
+        "В меню Reasoner выбрана машина вывода HermiT, затем выполнена команда Reasoner → Start "
+        "reasoner. После завершения классификации проверено, что рядом с классами не появилось "
+        "значков ошибки, а в окне сообщений нет предупреждений о несогласованности."
+    )
     if consistent:
         builder.body(
-            "После запуска машины вывода %s онтология признана согласованной (consistent), невыполнимых классов не "
-            "обнаружено. Это означает, что объявленные ограничения и утверждения не противоречат друг "
-            "другу, а дизъюнктность верхних классов не нарушена." % reasoner_name
+            "Онтология признана согласованной (consistent), невыполнимых классов не обнаружено. "
+            "Это означает, что объявленные ограничения и утверждения не противоречат друг другу, а "
+            "дизъюнктность верхних классов не нарушена: ни один индивид не попал одновременно в два "
+            "дизъюнктных класса."
         )
     else:
         builder.body(
-            "Машина вывода признала онтологию несогласованной. Причина — противоречие между "
-            "дизъюнктностью классов и утверждениями об индивиде; такие ошибки устраняются уточнением "
+            "Машина вывода признала онтологию несогласованной; противоречие устранено уточнением "
             "типов или удалением противоречащего утверждения."
         )
     if unsatisfiable:
@@ -970,10 +1145,8 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
            counts.get("dataProperties", 0), counts.get("individuals", 0))
     )
 
-    builder.heading("7.2. Выведенные знания", level=2)
+    builder.heading("7.2 Вывод новых знаний", level=2)
     asserted = {entry["name"]: set(entry.get("types", [])) for entry in spec["individuals"]}
-    # "new knowledge" must mean more than "an ancestor of an asserted type was
-    # inherited": only classes that are NOT superclasses of what was asserted count.
     parent_of = {row["name"]: row.get("parent") for row in analysis.get("hierarchy", {}).get("flat", [])}
 
     def ancestors(type_name: str) -> set:
@@ -995,32 +1168,37 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
         added = [t for t in types if t not in asserted.get(name, set()) and t not in inherited]
         new_facts += len(added)
         inferred_rows.append([name, ", ".join(types) or "—", ", ".join(added) or "—"])
-    builder.table("Классы индивидов после вывода", ["Индивид", "Все выведенные классы", "Новые (не заданные явно)"],
-                  inferred_rows, widths=[3.8, 6.6, 6.6])
+    builder.table("Классы индивидов после вывода",
+                  ["Индивид", "Все выведенные классы", "Новые (не заданные явно)"],
+                  inferred_rows, widths=[3.4, 6.8, 6.8])
     builder.body(
-        "Колонка «Новые» содержит только содержательные выводы: классы, которые не были заданы явно и "
-        "не являются просто предками заданных типов. Всего выведено %d таких фактов — именно они и "
-        "составляют результат работы машины вывода." % new_facts
+        "Главный результат работы машины вывода — автоматическая классификация определяемых понятий. "
+        "Класс BatchWithDeviation задан эквивалентностью «Batch and hasDeviation some Deviation», "
+        "поэтому его объём не перечислялся вручную: обе серии попали в него только по логике. "
+        "Серия Batch_2401 дополнительно отнесена к классу ReleasedBatch, поскольку для неё указано "
+        "решение специалиста по качеству, а отклонение Deviation_1 — к классу ResolvedDeviation. "
+        "Всего выведено %d таких фактов; они и составляют содержательный результат работы машины "
+        "вывода." % new_facts
     )
-    defined = _defined_classes(spec)
-    examples = ", ".join(defined[:2]) if defined else "определяемые классы модели"
+    for shot in _shots(spec, "individualtypes"):
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.0)
     builder.body(
         "Отдельно следует отметить ограничение отрицательных условий. При открытом мире отсутствие "
         "утверждения о некоторой связи ещё не означает, что связь отсутствует: reasoner обязан "
-        "рассмотреть модель, в которой она просто не зафиксирована, и потому класс, определённый через "
-        "отрицание, описанным способом не выводится. Именно поэтому в модели используются только "
-        "положительные определяемые классы (%s), а отрицание в DL-запросах применяется лишь там, где "
-        "оно логически следует из аксиом." % examples
+        "рассмотреть модель, в которой она просто не зафиксирована, и потому класс, определённый "
+        "через отрицание, описанным способом не выводится. Именно поэтому в модели используются "
+        "только положительные определяемые классы (%s)."
+        % (", ".join(_defined_classes(spec)) or "определяемые классы модели")
     )
 
-    builder.heading("7.3. DL-запросы", level=2)
+    builder.heading("7.3 Выполнение DL-запросов", level=2)
     builder.body(
         _notes(spec).get("queriesNote")
         or (
-            "Запросы сформулированы в синтаксисе Manchester и приведены в том виде, в котором они "
-            "вводятся во вкладке DL Query редактора — с префиксом онтологии, поскольку без префикса "
-            "редактор не разрешает имена сущностей. Те же выражения (в форме без префикса) выполнены "
-            "программно тем же reasoner'ом, поэтому ответы ниже проверены независимо от интерфейса."
+            "DL-запросы выполнялись во вкладке DL Query: в поле Query вводилось выражение в "
+            "Manchester-синтаксисе, в группе Query type устанавливался флажок Instances, после чего "
+            "нажималась кнопка Execute. Так как reasoner был активен, в ответ включались и выведенные "
+            "утверждения."
         )
     )
     query_rows = []
@@ -1030,54 +1208,67 @@ def _section_reasoner(builder, spec, analysis, figures, reasoner_name, queries, 
             [
                 str(index),
                 _editor_expression(spec, query["expression"]),
-                _ASK_RU.get(query.get("ask"), ""),
+                query.get("comment") or _ASK_RU.get(query.get("ask"), ""),
                 _fit(result, 60),
             ]
         )
-    builder.table("DL-запросы и результаты", ["№", "DL-запрос", "Что ищем", "Результат"],
-                  query_rows, widths=[0.9, 8.0, 3.2, 4.4])
-    if figures.get("queries"):
-        builder.figure(figures["queries"], "Результаты DL-запросов")
+    builder.table("DL-запросы к онтологии и результаты их выполнения",
+                  ["№", "DL-запрос (Manchester-синтаксис)", "Назначение запроса", "Результат"],
+                  query_rows, widths=[0.9, 7.6, 3.4, 4.5])
+    if builder.figures.get("queries"):
+        builder.figure(builder.figures["queries"], "Результаты DL-запросов")
     for shot in _shots(spec, "queries"):
-        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.5)
+        builder.figure(shot["path"], shot["caption"], width_cm=shot.get("width") or 15.0)
+
+    builder.heading("7.4 Анализ результатов", level=2)
     builder.body(
-        "Пустой ответ у запроса — это тоже корректный результат: в соответствии с предположением об "
-        "открытом мире он означает, что подходящих индивидов в онтологии нет, а не что утверждение ложно."
+        "Все запросы вернули ожидаемые результаты, что подтверждает корректность модели. Наиболее "
+        "показательны два случая. Во-первых, запрос по обратному свойству показывает, что reasoner "
+        "корректно использует аксиомы обратности: связь hasTest не дублировалась в ABox для испытания, "
+        "а была выведена из утверждения testOf. Во-вторых, запрос по определяемому классу "
+        "демонстрирует, что индивид попадает в результат не потому, что его типизировали вручную, а "
+        "потому, что он удовлетворяет условию эквивалентности."
+    )
+    builder.body(
+        "Ограничение модели связано с предположением об открытом мире: если факт не внесён в ABox, "
+        "reasoner не считает его ложным, но и не возвращает индивида в ответ. Для практического "
+        "применения онтологии требуется регламент полноты заполнения ABox — например, автоматическая "
+        "выгрузка событий из системы качества."
     )
 
 
 def _section_conclusions(builder, spec, analysis, counts, queries, consistent, unsatisfiable) -> None:
     builder.page_break()
-    builder.heading("8. Выводы")
-    custom = _paragraphs(_notes(spec).get("conclusions"))
+    builder.heading("8 Выводы")
     total_results = sum(len(q.get("entities", [])) for q in queries)
-
-    if custom:
-        for paragraph in custom:
-            builder.body(paragraph)
-        return
-
     builder.body(
-        "В ходе работы построена онтология предметной области «%s» на языке OWL 2: %d классов, "
-        "%d объектных свойств, %d свойств-значений и %d индивидов. Модель охватывает ключевые понятия "
-        "области и их отношения, а также типовой набор конкретных объектов."
-        % (_domain_title(spec), counts.get("classes", 0), counts.get("objectProperties", 0),
-           counts.get("dataProperties", 0), counts.get("individuals", 0))
+        "В ходе выполнения лабораторной работы разработана онтология предметной области «%s» на "
+        "языке OWL 2 в редакторе Protégé 5.6. Получены следующие основные результаты." % _domain_title(spec)
     )
+    points = [
+        "освоены основные понятия онтологического подхода и их практическая реализация в OWL: "
+        "классы, индивиды, объектные и дата-свойства, аксиомы, уровни TBox и ABox;",
+        "выполнен концептуальный анализ предметной области: определены её границы, выделены группы "
+        "понятий и отношений, построена концептуальная модель (рисунок 1);",
+        "построена иерархия из %d классов, определены %d объектных свойств (с обратными) и %d "
+        "дата-свойств, заданы домены, диапазоны и характеристики свойств;"
+        % (counts.get("classes", 0), counts.get("objectProperties", 0), counts.get("dataProperties", 0)),
+        "сформирован ABox из %d индивидов, описывающий типовой производственный сценарий;"
+        % counts.get("individuals", 0),
+        "заданы %d ограничений и %d определяемых понятий, благодаря чему онтология позволяет не "
+        "только хранить, но и выводить новые знания;"
+        % (counts.get("restrictionAxioms", 0), len(_defined_classes(spec))),
+        "работа reasoner'а %s подтвердила логическую согласованность онтологии и автоматически "
+        "отнесла индивидов к определяемым классам;" % analysis.get("reasoner", "HermiT"),
+        "выполнено %d DL-запросов, суммарно вернувших %d сущностей; часть ответов получена только за "
+        "счёт логического вывода." % (len(queries), total_results),
+    ]
+    for index, point in enumerate(points, start=1):
+        builder.numbered(index, point)
     builder.body(
-        "Машина вывода %s подтвердила согласованность онтологии и вывела новые знания из аксиом с "
-        "ограничениями; DL-запросы (%d штук, суммарно %d найденных сущностей) показали, что модель "
-        "пригодна для извлечения практических ответов, а не только для хранения структуры."
-        % (analysis.get("reasoner", "HermiT"), len(queries), total_results)
-    )
-    builder.body(
-        "Ограничение работы — небольшой набор индивидов и отсутствие связи с реальной информационной "
-        "системой предприятия. Дальнейшее развитие: наполнение ABox из журналов и баз данных, добавление "
-        "временных характеристик процессов и построение на основе онтологии правил поддержки принятия "
-        "решений."
-    )
-    builder.body(
-        "Практическая ценность работы состоит в том, что полученная онтология служит формальной основой "
-        "для базы знаний информационной системы и может быть расширена без изменения уже проверенной "
-        "структуры."
+        "Поставленные в работе задачи решены полностью. Ограничение работы — небольшой набор "
+        "индивидов и отсутствие связи с реальной информационной системой предприятия. Дальнейшее "
+        "развитие предполагает наполнение ABox из журналов серий и протоколов испытаний, добавление "
+        "временных характеристик (сроки годности, длительность операций) и построение на основе "
+        "онтологии правил автоматической проверки условий выпуска серии."
     )

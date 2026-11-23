@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 — report structure follows the assignment
+
+- Sections mirror the method book: §3 theory with six subsections (OWL elements, restrictions and
+  property characteristics, TBox/ABox, OWA, reasoner), §4 with 4.1–4.3, §5 with an axioms table and a
+  "compliance with the assignment" table (5.5), §6 with 6.1–6.8 (project/IRI, hierarchy, object
+  properties, data properties, restrictions, individuals, metrics, save/backup), §7 with 7.1–7.4,
+  §8 conclusions numbered 1–7 and tied to the tasks.
+- New screenshot anchors: `objectproperties`, `restrictions`, `individualtypes`.
+- Formatting: headings forced black (the donor template colours them dark blue), automatic hyphenation
+  enabled (justified Russian text otherwise leaves wide gaps), hanging-indent numbered lists.
+- Data-value restrictions build plain `xsd:string` literals instead of `"…"@en`, so a class defined by
+  `hasSeverity value "критическое"` actually matches ABox values.
+
+## 1.0.7 — concept map can be a supplied image
+
 ## 1.0.7 — concept map can be a supplied image
 
 - A supplied `screenshots.concept` entry now **replaces** the generated concept map instead of being

@@ -107,7 +107,9 @@ class ManchesterReader:
             text = token[1:-1].replace('\\"', '"')
             if datatype:
                 return self.df.getOWLLiteral(text, self._datatype(datatype))
-            return self.df.getOWLLiteral(text, "en")
+            # plain xsd:string, not a language-tagged literal: ABox values are
+            # written as plain strings, and "критическое"@en would never match them
+            return self.df.getOWLLiteral(text)
         numeric = token
         alias = datatype or ("float" if "." in numeric else "integer")
         if alias in ("float", "double", "decimal"):
