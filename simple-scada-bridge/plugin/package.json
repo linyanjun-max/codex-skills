@@ -1,0 +1,35 @@
+{
+  "name": "dsh-tool-simple-scada",
+  "version": "1.0.0",
+  "description": "Simple-Scada 2 bridge for DeepSeek Harness: project model reading/editing, script compilation by editor hot key, project start/stop, journal and live OPC UA variable access behind model-callable tools",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "scripts",
+    "README.md",
+    "cordis.patch.yml"
+  ],
+  "keywords": [
+    "dsh",
+    "cordis",
+    "deepseek-harness",
+    "simple-scada",
+    "scada",
+    "opc-ua",
+    "automation"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "selfcheck": "node scripts/selfcheck.mjs"
+  }
+}
