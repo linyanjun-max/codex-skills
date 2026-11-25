@@ -67,7 +67,8 @@ Start with `scada_status`; `scada_help {topic}` returns the cookbook for
    offset is not proven, the tool **fails with an explanation** instead of guessing.
 4. **Only proven fields are writable**: script bodies (all of `Scripts.ssc`), variable
    descriptions, and screen elements of `Pages.spg` (`list/move/text/variable/color/clone/
-   delete/set-caption`; record layout in `plugin/docs/pages-spg.md`). Variable add/remove,
+   delete/set-caption`; record layout in `plugin/docs/pages-spg.md`, measured layout rules in
+   `plugin/docs/screen-layout.md`). Variable add/remove,
    initial values, limits, types and `Project.spr` flags are refused with a reason — write
    those in the editor. Never locate an object id by value: it lives at `body+107`, and a
    wrong guess produces `Stream read error | subpage | page`.
@@ -102,6 +103,8 @@ type and reads it back, so the result shows what the SCADA actually stored.
 | `project not found` | name must equal the folder under `Projects\` | `scada_projects` lists exact names |
 | journal empty but log has lines | journal page needs the server; log tail is separate | both are returned |
 | `Stream read error \| subpage \| page` | page record written at a wrong offset | restore `backupDir`, redo with `what:"page"` |
+| page looks unchanged in the client | the project was not restarted after writing | `scada_run action:"restart"` |
+| captions lose characters / lines overlap | field narrower than `chars × 15` or shorter than 26 px (32 px multi-line) | widen the field, never the font (`plugin/docs/screen-layout.md`) |
 | page/script edit vanished | the editor had the project open and saved over it | close the editor, redo, reopen |
 | new project folder not listed | server reads the project list at startup | restart `Server.exe` |
 | `warnings: group N of M: file ended early` | `Variables.svr` header version 156 (newer build) | open that project in the editor |

@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.1 — screen layout reference (docs only, no code change)
+
+Added `plugin/docs/screen-layout.md`: the measured rules for laying out a page that
+actually survives the client's scaling.
+
+* coordinate system: page is **1280 × 720**, the client scales it (×2 on a 2560 × 1440
+  screen, verified by measuring a title at x=140 landing on 280 px); anything outside the
+  page is clipped, and the page caption is drawn *over* the top-left corner;
+* font metrics: line height **32 px**, single text line 26–30 px, Cyrillic glyph ≈ **15 px**
+  wide, so `field width ≥ chars × 15`; text is centred **and clipped** by its field (no
+  ellipsis), a 20 px field with 24 px text overlaps lines, table rows need 52 px, a 150 px
+  button fits ≈ 9 characters;
+* the font size byte (`body+31`) is an **enumeration, not a size** — 9 renders huge,
+  12 microscopic, 17 (the Text default) normal, so layout is fitted to the font, not the
+  reverse;
+* a proven three-column layout with concrete X/Y/W/H numbers, and which fields must be
+  patched per component type when cloning (Shape/Text/Field/Level/Button, including both
+  button state texts at `body+171` and `body+235`, replaced far-field-first);
+* the verification loop without the editor: write → `scada_run action:"restart"` → read
+  `Logs\Server-log.txt` for `активирован` vs `Stream read error` → `PrintWindow` screenshot
+  to check clipping/overlaps.
+
+`docs/pages-spg.md` links to it; the Russian section at the end of `plugin/README.md` lists
+both documents.
+
 ## 1.1.0 — screen elements (Pages.spg) are decoded and editable
 
 Verified against **Simple-Scada 2.7.3.1 (demo64)**.

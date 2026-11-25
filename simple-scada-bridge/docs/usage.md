@@ -100,6 +100,19 @@ Rules that keep a page loadable:
   then read `scada_journal` / `Logs\Server-log.txt` for `активирован` vs
   `Ошибка при загрузке страниц проекта`.
 
+Laying the page out (full detail and measured numbers: `plugin/docs/screen-layout.md`):
+
+* work on the **1280 × 720** grid — the client scales it (×2 on 2560×1440) and clips whatever
+  is outside; the page caption is painted over the top-left corner;
+* budget text by glyph width: line height **32 px**, Cyrillic glyph ≈ **15 px**, so a field
+  must be at least `characters × 15` wide. Text is centred and **clipped** by its field — no
+  ellipsis, characters just disappear;
+* the byte at `body+31` is a font **enumeration**, not a size (`9` = huge, `12` =
+  microscopic, `17` = Text default): pick a template object with the right font and clone it,
+  then fit geometry to the font;
+* when cloning a Button, both state texts must be patched (`body+235` first, then `body+171`,
+  because the first replacement shifts the second offset).
+
 ## 6. Validate before running
 
 ```text

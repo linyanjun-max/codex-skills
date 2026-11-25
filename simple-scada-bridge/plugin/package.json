@@ -1,6 +1,6 @@
 {
   "name": "dsh-tool-simple-scada",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Simple-Scada 2 bridge for DeepSeek Harness: binary project model reading/editing (variables, scripts, screen elements), script compilation by editor hot key, project start/stop, journal and live OPC UA variable access behind model-callable tools",
   "type": "module",
   "main": "lib/index.js",

@@ -85,7 +85,8 @@ Proven on this installation (see `docs/api-verified.md` for byte-level detail):
   (`float32` X/Y/W/H), font/fill/border colours (BGR), object id, primary and second variable
   index, captions and button state texts — and `scada_edit {what:"page"}` rewrites geometry,
   text, bound variable, colours, clones and deletes elements; full layout in
-  `plugin/docs/pages-spg.md`;
+  `plugin/docs/pages-spg.md`; measured layout rules — page grid, font metrics, clipping and
+  the per-type clone patch list — in `plugin/docs/screen-layout.md`;
 * `Scripts.ssc` parse → re-encode is **byte-identical**; appending a line produces the
   expected delta, a backup, and an immediate "bytecode stale" verdict;
 * variable description rewrite shifts only the intended bytes and re-parses cleanly;

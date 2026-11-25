@@ -138,6 +138,17 @@ The **variable index** is the zero-based row of the variable inside its group (c
 correlating two fields drawn on `rVib`/`rTemp`). Full Russian write-up with the traps:
 `plugin/docs/pages-spg.md`.
 
+Layout metrics (measured, not guessed — details in `plugin/docs/screen-layout.md`):
+
+* page grid is **1280 × 720**; the client scales it (×2 on a 2560 × 1440 screen) and clips
+  anything outside;
+* the page caption is drawn **over** the top-left corner of the page;
+* line height **32 px**, single text line 26–30 px, Cyrillic glyph ≈ **15 px**
+  (`field width ≥ chars × 15`); text is centred **and clipped** by its field, with no
+  ellipsis;
+* the byte at `body+31` is a **font enumeration, not a size** (`9` renders huge, `12`
+  microscopic, `17` is the Text default) — layout is fitted to the font, never the reverse.
+
 ### 2.5 `Project.spr`
 
 `project_SwimmingPool` is 435 bytes. Decoded: project name, project GUID (u32 `0x24` +
