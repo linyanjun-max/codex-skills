@@ -70,7 +70,37 @@ Only `description` is writable today; other keys are rejected with an explanatio
 created without a description store the placeholder `Noname server` — the bridge inserts a
 description in front of it instead of overwriting it.
 
-## 5. Validate before running
+## 5. Edit screen elements (Pages.spg)
+
+`Pages.spg` is fully decoded (layout: `plugin/docs/pages-spg.md`). Every action returns the
+element list, the byte delta, a backup path and re-parse warnings.
+
+```text
+scada_edit {project:"P", what:"page", action:"list"}
+scada_edit {project:"P", what:"page", action:"move",     payload:{name:"fVib", x:10, y:20, width:80, height:24}}
+scada_edit {project:"P", what:"page", action:"text",     payload:{name:"ttl", text:"Мнемосхема"}}
+scada_edit {project:"P", what:"page", action:"variable", payload:{name:"fVib", variable:"rTemp"}}   # or index:15
+scada_edit {project:"P", what:"page", action:"color",    payload:{name:"panelObj", fill:"#24303A", border:"#3C4C5C"}}
+scada_edit {project:"P", what:"page", action:"clone",    payload:{from:"fVib", name:"fNew", x:300, y:300, width:80, height:24, variable:"rSpeed"}}
+scada_edit {project:"P", what:"page", action:"delete",   payload:{name:"fOld"}}
+scada_edit {project:"P", what:"page", action:"set-caption", payload:{page:"Page1", caption:"Мнемосхема"}}
+```
+
+Rules that keep a page loadable:
+
+* **Close the editor before writing `Pages.spg`.** `Editor.exe` keeps the project in memory and
+  the next save overwrites your file (observed: 2731 → 23 bytes). Reopen the project after.
+* Object ids live at `body+107` only; never search for them by value range — a 36–40 char
+  string length or the colour `#24303A` collides and produces
+  `Ошибка при загрузке страниц проекта! Stream read error | subpage | Subpage1 | page | Page1`.
+* Composite components (Level) own following `type 0` records; `clone` copies the whole range.
+* Design at **1280 × 720**; the client scales the page (×2 on 2560×1440), so 20 pt text becomes
+  40 pt and layouts overflow.
+* Verify without the GUI: write the file, restart the project (`scada_run action:"restart"`),
+  then read `scada_journal` / `Logs\Server-log.txt` for `активирован` vs
+  `Ошибка при загрузке страниц проекта`.
+
+## 6. Validate before running
 
 ```text
 scada_validate {project:"project_SwimmingPool", deep:true}
@@ -81,7 +111,7 @@ Warnings: scripts referencing unknown variables (`x.Foo` where `x` is not a vari
 elements bound to unknown variables, stale bytecode, pages only partially decoded.
 `deep:true` additionally checks the OPC UA worker and the admin API.
 
-## 6. Compile
+## 7. Compile
 
 Prerequisite: the project is open in `Editor.exe`.
 
@@ -97,7 +127,7 @@ Result reports `bytecode.before/after` timestamps, whether the file changed, and
 If the editor is not running, pass `openEditor:true` to launch it — then open the project in
 the window and run the tool again.
 
-## 7. Start a run ("training") and watch results
+## 8. Start a run ("training") and watch results
 
 ```text
 scada_run {project:"project_SwimmingPool", action:"start", client:true}
@@ -114,7 +144,7 @@ scada_run {project:"project_SwimmingPool", action:"stop"}
 per-node summary (`samples`, `min`, `max`, `last`, `status`) — that is the "background
 results" view for a run.
 
-## 8. Write a value into a running project
+## 9. Write a value into a running project
 
 ```text
 scada_values {action:"write", values:{"waterLevel":90,"xMotor":true}}
@@ -124,7 +154,7 @@ Values are coerced to the node's data type and read back; the result shows `writ
 `readback` per node. Use it to drive the model (setpoints, permissives) instead of clicking
 the client UI.
 
-## 9. Discover the OPC UA endpoint by hand
+## 10. Discover the OPC UA endpoint by hand
 
 ```text
 scada_values {action:"discover", rescan:true}

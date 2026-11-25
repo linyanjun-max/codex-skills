@@ -1,9 +1,14 @@
 # Verified API facts
 
 Everything below was measured on this machine against **Simple-Scada 2 (demo64),
-version 2.6.12.3**, installed at `D:\simpleScada\Simple-Scada 2 (demo64)` with data in
+version 2.7.3.1**, installed at `D:\simpleScada\Simple-Scada 2 (demo64)` with data in
 `D:\simpleScada\document\Simple-Scada 2 (demo64)` (registry value `DataPathDemo64`).
 Where a fact is a guess it is marked as such — nothing else is.
+
+File-format support is tied to the **header version** stored in each project file, not to the
+executable version: `Variables.svr` written by 2.6.x carries version `8`, some files carry
+`10` (both parse), and projects re-saved by a newer build carry `156` (partially parse — the
+bridge says so in `warnings`). Pages and scripts were confirmed against 2.7.3.1.
 
 ## 1. Discovery
 
@@ -26,7 +31,7 @@ Install dir is the folder containing `Server.exe` **and** `Editor.exe`.
 | file | content |
 | --- | --- |
 | `Project.spr` | project settings: name, GUID, database host/name/user, flag bytes |
-| `Variables.svr` | variable definitions (editor source of truth) |
+| `Variables.svr` | variable definitions (editor source of truth), header version 8/10/156 |
 | `Variables.svrr` | compact runtime index: groups → name, id, description |
 | `Pages.spg` | pages, subpages, element records |
 | `Trends.str`, `Messages.smg`, `Messages.smgr`, `Groups.seg`, `Windows.swn`, `ArcSystem.sar` | trends, messages, groups, windows, archive |
@@ -100,14 +105,38 @@ carries a named script group (`"..\"` + `u32 3` + `u32 0d` + `u32 33` + UTF-8 gr
 so the standard parser reports `implausible name length … at offset 31` and the bridge
 degrades gracefully.
 
-### 2.4 `Pages.spg`
+### 2.4 `Pages.spg` (fully mapped in 1.1.0)
 
-Nested stream: page/subpage headers, then element records (~158 bytes each in
-`project_SwimmingPool`). Every object name is stored as `u32 len` + ASCII, which is the only
-reliable anchor found. Page names in the swimming-pool project: `Page1`, `Subpage1`; object
-names: `Shape7`, `Shape6`, `startButton`, `stopButton`, `SPShape`, `WLShape`, `BellShape`,
-`Pipe`, `Valve1`, `MotorShape`, … Captions follow as `u32 charCount` + UTF-16LE.
-Geometry/type/binding fields are **not** mapped yet → pages are read-only.
+```
+[page header][subpage header][u32 count][object records…][trailer]
+record: u16 type | u32 len(name) | name (ASCII) | body
+body = record start + 6 + len(name)          # offsets must be taken from body, never from the record
+```
+
+`type 0` = service records (`PageN`, `SubpageN`, and the internal parts of composite
+components such as `Scale`/`Field` inside a Level). `type 1..18` = screen objects: 1 Image,
+2 Shape, 3 Pipe, 4 Text, 5 Field, 6 Scale, 7 Button, 8 Tank, 9 Level, 10 Time trends,
+11 Valve, 12 Line, 13 Checkbox, 14 List, 15 Table, 16 Calendar, 17 Message list,
+18 Schedule.
+
+Proven field offsets inside `body`:
+
+| offset | field | type |
+| --- | --- | --- |
+| +8 | X, Y, W, H | 4 × float32 |
+| +40 | font colour | 3 bytes BGR |
+| +45 | fill colour | 3 bytes BGR |
+| +107 | object id (u32, +4 per object) | u32 |
+| +111 | primary variable | `[u32 index][u32 0]`, absent = `FF × 8` |
+| +127 | second variable | same |
+| +137 | Text caption | `u32 len` + UTF-16LE |
+| +141 | border colour | 3 bytes BGR |
+| +151 / +219 | Button state-1 / state-2 names | `u32 len` + UTF-16LE |
+| +171 / +235 | Button state-1 / state-2 texts | `u32 len` + UTF-16LE |
+
+The **variable index** is the zero-based row of the variable inside its group (checked by
+correlating two fields drawn on `rVib`/`rTemp`). Full Russian write-up with the traps:
+`plugin/docs/pages-spg.md`.
 
 ### 2.5 `Project.spr`
 

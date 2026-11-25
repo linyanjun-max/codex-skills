@@ -211,63 +211,394 @@ export function parseVariables(buf, includeRaw) {
 }
 
 // ---------------------------------------------------------------------------
-// Pages.spg is a nested Delphi stream: page/subpage headers followed by element
-// records (~158 bytes each in project_SwimmingPool) that carry a u32-length-
-// prefixed ASCII name, an element type id, geometry as singles and property
-// blocks. The u32 length prefix makes object names reliably detectable, but the
-// surrounding record fields are not mapped yet, so this reader returns the
-// page/subpage skeleton plus the object-name index and editing is refused.
-const PAGE_NAME_RE = /[A-Za-z_][A-Za-z0-9_]{2,40}/g
+// Pages.spg - страницы, подстраницы и объекты экрана
+//
+// Формат восстановлен экспериментально: образцы нарисованы в редакторе, затем
+// побайтово сопоставлены. Проверено на Simple-Scada 2.7.3.1 (Demo-64).
+//
+//   файл   = заголовок страницы + подстраница + u32 count + записи объектов
+//   запись = [u16 type][u32 len(имя)][имя ASCII][тело]
+//   type 0 = служебная запись: PageN, SubpageN, а также внутренние части
+//            составных компонентов (Scale, Field у "Уровня")
+//   1..18  = объекты экрана (см. ELEMENT_RU)
+//
+// Смещения внутри тела (body = offset + 6 + len(name)):
+//   body+8    X, Y, W, H            (4 x float32)
+//   body+40   цвет шрифта           (3 байта BGR)
+//   body+45   цвет заливки          (3 байта BGR)
+//   body+107  порядковый id объекта (u32, по +4 на объект)
+//   body+111  основная переменная   ([u32 index][u32 0]; нет = FF x 8)
+//   body+127  вторая переменная     (то же, «Доп. переменная»)
+//   body+137  ТЕКСТ: u32 len + UTF-16LE
+//   body+141  цвет границы          (3 байта BGR)
+//   body+151 / +219  КНОПКА: имена состояний 1 и 2
+//   body+171 / +235  КНОПКА: тексты состояний 1 и 2
+//
+// УРОКИ, за которые заплачено отладкой:
+//  * id объекта читать и писать ТОЛЬКО по body+107. Поиск «любых u32 в
+//    диапазоне 0x2400..0x2800» повреждает чужие поля: длина строки в 36..40
+//    символов даёт 0x000024xx..0x000027xx, а цвет #24303A с соседним нулём -
+//    0x00002430. Симптом: сервер пишет "Stream read error | subpage | page".
+//  * «Уровень» - составная запись: за ней сразу идут служебные записи type 0
+//    (Scale, Field). Клон обязан захватывать весь диапазон до следующей
+//    записи с type != 0.
+//  * размер страницы по умолчанию 1280 x 720, клиент масштабирует её под
+//    экран (на 2560x1440 - ровно x2). Раскладку проектировать в 1280x720.
+//  * Editor.exe держит проект в памяти: запись файла при открытом проекте
+//    затирается следующим сохранением. Писать при закрытом редакторе.
+//  * список проектов сервер читает при старте: новый каталог виден scada_run
+//    только после перезапуска Server.exe.
+//  * Demo-64 запускает не более одного проекта одновременно.
+//  * проверить страницу без редактора можно так: перезапустить Server.exe,
+//    scada_run start проекта и прочитать хвост Logs\Server-log.txt.
+// ---------------------------------------------------------------------------
+export const ELEMENT_RU = {
+  1: 'Изображение', 2: 'Фигура', 3: 'Трубопровод', 4: 'Текст', 5: 'Поле',
+  6: 'Шкала', 7: 'Кнопка', 8: 'Резервуар', 9: 'Уровень', 10: 'Временные тренды',
+  11: 'Заслонка', 12: 'Линия', 13: 'Флажок', 14: 'Список', 15: 'Таблица',
+  16: 'Календарь', 17: 'Список сообщений', 18: 'Расписание',
+}
+
+const BODY = {
+  geometry: 8, fontColor: 40, fillColor: 45, objectId: 107,
+  variable: 111, variable2: 127, caption: 137, borderColor: 141,
+  btnName1: 151, btnText1: 171, btnName2: 219, btnText2: 235,
+}
+
+const MIN_ID = 0x2400
+const MAX_ID = 0x3000
+
+function scanMarks(buf) {
+  const marks = []
+  for (let i = 0; i + 8 < buf.length; i++) {
+    const type = buf.readUInt16LE(i)
+    if (type > 64) continue
+    const n = buf.readUInt32LE(i + 2)
+    if (n < 2 || n > 40 || i + 6 + n > buf.length) continue
+    const name = buf.subarray(i + 6, i + 6 + n).toString('latin1')
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue
+    marks.push({ offset: i, type: type, name: name, headerLength: 6 + n })
+  }
+  return marks
+}
+
+function elementEnd(marks, index, fallback) {
+  for (let j = index + 1; j < marks.length; j++) {
+    if (marks[j].type !== 0) return marks[j].offset
+  }
+  return fallback
+}
+
+function readGeometry(buf, base) {
+  if (base + 16 > buf.length) return null
+  const x = buf.readFloatLE(base), y = buf.readFloatLE(base + 4)
+  const width = buf.readFloatLE(base + 8), height = buf.readFloatLE(base + 12)
+  if ([x, y, width, height].some(function (v) { return v !== v })) return null
+  return { x: x, y: y, width: width, height: height }
+}
+
+function readColor(buf, off) {
+  if (off + 3 > buf.length) return null
+  return '#' + [buf[off + 2], buf[off + 1], buf[off]]
+    .map(function (v) { return v.toString(16).padStart(2, '0') }).join('').toUpperCase()
+}
+
+function readUtf16(buf, off) {
+  if (off + 4 > buf.length) return null
+  const n = buf.readUInt32LE(off)
+  if (n > 4000 || off + 4 + n * 2 > buf.length) return null
+  return buf.subarray(off + 4, off + 4 + n * 2).toString('utf16le')
+}
+
+function readVariable(buf, off) {
+  if (off + 8 > buf.length) return null
+  const index = buf.readUInt32LE(off)
+  if (index === 0xffffffff) return null
+  return { index: index, flags: buf.readUInt32LE(off + 4) }
+}
+
+function decodeElement(buf, mark, end) {
+  const body = mark.offset + mark.headerLength
+  const el = {
+    name: mark.name,
+    type: mark.type,
+    typeName: ELEMENT_RU[mark.type] || ('type ' + mark.type),
+    offset: mark.offset,
+    length: end - mark.offset,
+    id: body + BODY.objectId + 4 <= buf.length ? buf.readUInt32LE(body + BODY.objectId) : null,
+    geometry: readGeometry(buf, body + BODY.geometry),
+    variable: readVariable(buf, body + BODY.variable),
+    variable2: readVariable(buf, body + BODY.variable2),
+    colors: {
+      font: readColor(buf, body + BODY.fontColor),
+      fill: readColor(buf, body + BODY.fillColor),
+      border: readColor(buf, body + BODY.borderColor),
+    },
+  }
+  if (mark.type === 4) el.caption = readUtf16(buf, body + BODY.caption)
+  if (mark.type === 7) {
+    el.caption = readUtf16(buf, body + BODY.btnText1)
+    el.caption2 = readUtf16(buf, body + BODY.btnText2)
+    el.stateName1 = readUtf16(buf, body + BODY.btnName1)
+    el.stateName2 = readUtf16(buf, body + BODY.btnName2)
+  }
+  return el
+}
 
 export function parsePages(buf) {
   const warnings = []
-  const latin = buf.toString('latin1')
-  const names = []
-  let m
-  PAGE_NAME_RE.lastIndex = 0
-  while ((m = PAGE_NAME_RE.exec(latin)) !== null) {
-    const start = m.index
-    if (start < 4) continue
-    if (buf.readUInt32LE(start - 4) !== m[0].length) continue
-    const prev = start > 0 ? buf[start - 1] : 0
-    if ((prev >= 48 && prev <= 57) || (prev >= 65 && prev <= 90) || (prev >= 97 && prev <= 122)) continue
-    names.push({ name: m[0], offset: start })
+  const marks = scanMarks(buf)
+  if (!marks.length) {
+    return { pages: [], objectNames: [], elements: 0, warnings: ['Pages.spg: записей не найдено (пустая страница)'] }
   }
-
-  const captions = []
-  for (let i = 0; i + 6 < buf.length; i++) {
-    const n = buf.readUInt32LE(i)
-    if (n >= 2 && n <= 200 && i + 4 + n * 2 <= buf.length) {
-      const text = buf.subarray(i + 4, i + 4 + n * 2).toString('utf16le')
-      if (isPrintable(text) && /[A-Za-z\u0400-\u04ff]/.test(text)) {
-        captions.push({ offset: i, text: text })
-        i += 4 + n * 2 - 1
+  const pages = []
+  const objectNames = []
+  let page = null
+  let sub = null
+  for (let i = 0; i < marks.length; i++) {
+    const m = marks[i]
+    if (m.type === 0) {
+      if (/^Page\d*$/i.test(m.name)) {
+        page = { name: m.name, offset: m.offset, subpages: [], elements: [] }
+        pages.push(page)
+        sub = null
+      } else if (/^Subpage/i.test(m.name)) {
+        sub = { name: m.name, offset: m.offset, elements: [] }
+        if (!page) { page = { name: null, offset: 0, subpages: [], elements: [] }; pages.push(page) }
+        page.subpages.push(sub)
       }
+      continue
+    }
+    const end = elementEnd(marks, i, buf.length)
+    const el = decodeElement(buf, m, end)
+    if (sub) sub.elements.push(el)
+    else if (page) page.elements.push(el)
+    objectNames.push({ name: m.name, type: m.type, offset: m.offset })
+  }
+  const total = pages.reduce(function (n, p) {
+    return n + p.elements.length + p.subpages.reduce(function (k, s) { return k + s.elements.length }, 0)
+  }, 0)
+  if (!total) warnings.push('Pages.spg: страница есть, объектов нет')
+  return { pages: pages, objectNames: objectNames, elements: total, warnings: warnings }
+}
+
+// ---------------------------------------------------------------------------
+// запись
+// ---------------------------------------------------------------------------
+function parsePageModel(buf) {
+  const marks = scanMarks(buf)
+  const elements = []
+  const objectMarks = marks.filter(function (m) { return m.type !== 0 })
+  let countOffset = buf.length - 4
+  let tail = Buffer.alloc(0)
+  if (objectMarks.length) {
+    countOffset = objectMarks[0].offset - 4
+    if (countOffset < 0) throw new Error('Pages.spg: не найдено поле количества объектов')
+    for (const m of objectMarks) {
+      const idx = marks.indexOf(m)
+      const end = elementEnd(marks, idx, buf.length)
+      elements.push({ name: m.name, type: m.type, raw: Buffer.from(buf.subarray(m.offset, end)) })
+    }
+    const lastIdx = marks.indexOf(objectMarks[objectMarks.length - 1])
+    const lastEnd = elementEnd(marks, lastIdx, buf.length)
+    tail = Buffer.from(buf.subarray(lastEnd))
+  }
+  return { header: Buffer.from(buf.subarray(0, countOffset)), countOffset: countOffset, elements: elements, tail: tail }
+}
+
+function bodyLength(raw) {
+  return 6 + raw.readUInt32LE(2)
+}
+
+function replaceRange(raw, start, end, data) {
+  return Buffer.concat([raw.subarray(0, start), data, raw.subarray(end)])
+}
+
+function withName(raw, name) {
+  const n = raw.readUInt32LE(2)
+  const len = Buffer.alloc(4)
+  len.writeUInt32LE(name.length, 0)
+  return Buffer.concat([raw.subarray(0, 2), len, Buffer.from(name, 'latin1'), raw.subarray(6 + n)])
+}
+
+function withGeometry(raw, g) {
+  const out = Buffer.from(raw)
+  const base = bodyLength(raw) + BODY.geometry
+  if (g.x !== undefined) out.writeFloatLE(g.x, base)
+  if (g.y !== undefined) out.writeFloatLE(g.y, base + 4)
+  if (g.width !== undefined) out.writeFloatLE(g.width, base + 8)
+  if (g.height !== undefined) out.writeFloatLE(g.height, base + 12)
+  return out
+}
+
+function withId(raw, id) {
+  const out = Buffer.from(raw)
+  out.writeUInt32LE(id >>> 0, bodyLength(raw) + BODY.objectId)
+  return out
+}
+
+function readId(raw) {
+  const body = bodyLength(raw)
+  if (body + BODY.objectId + 4 > raw.length) return null
+  return raw.readUInt32LE(body + BODY.objectId)
+}
+
+function withVariable(raw, index, slot) {
+  const out = Buffer.from(raw)
+  const off = bodyLength(raw) + (slot === 2 ? BODY.variable2 : BODY.variable)
+  if (index === null || index === undefined) {
+    out.fill(0xff, off, off + 8)
+  } else {
+    out.writeUInt32LE(index >>> 0, off)
+    out.writeUInt32LE(0, off + 4)
+  }
+  return out
+}
+
+function withColor(raw, which, hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) throw new Error('цвет должен быть в виде #RRGGBB: ' + hex)
+  const out = Buffer.from(raw)
+  const off = bodyLength(raw) + BODY[which]
+  out[off] = parseInt(hex.slice(5, 7), 16)
+  out[off + 1] = parseInt(hex.slice(3, 5), 16)
+  out[off + 2] = parseInt(hex.slice(1, 3), 16)
+  return out
+}
+
+function withUtf16(raw, bodyOffset, text) {
+  const off = bodyLength(raw) + bodyOffset
+  if (off + 4 > raw.length) throw new Error('смещение текста вне записи')
+  const n = raw.readUInt32LE(off)
+  if (n > 4000 || off + 4 + n * 2 > raw.length) throw new Error('не найдено поле текста')
+  const data = Buffer.alloc(4 + text.length * 2)
+  data.writeUInt32LE(text.length, 0)
+  data.write(text, 4, 'utf16le')
+  return replaceRange(raw, off, off + 4 + n * 2, data)
+}
+
+function variableIndexByName(dir, name) {
+  const file = path.join(dir, PROJECT_FILES.variables)
+  if (!existsSync(file)) throw new Error('нет Variables.svr: имя переменной не разрешить')
+  const parsed = parseVariables(readFileSync(file), false)
+  for (const g of parsed.groups) {
+    const i = g.variables.findIndex(function (v) { return v.name === name })
+    if (i >= 0) return i
+  }
+  throw new Error('переменная не найдена: ' + name)
+}
+
+
+export function editPages(dir, action, payload, dryRun) {
+  const file = path.join(dir, PROJECT_FILES.pages)
+  if (!existsSync(file)) throw new Error('нет файла ' + file)
+  const buf = readFileSync(file)
+  const p = payload || {}
+
+  if (action === 'set-caption') {
+    const parsed = parsePages(buf)
+    const page = parsed.pages[0]
+    if (!page) throw new Error('страница не найдена')
+    const nameEnd = page.offset + 6 + page.name.length
+    const len = buf.readUInt32LE(nameEnd)
+    if (len > 200 || nameEnd + 4 + len * 2 > buf.length) throw new Error('не удалось найти подпись страницы')
+    const caption = p.caption || ''
+    const data = Buffer.alloc(4 + caption.length * 2)
+    data.writeUInt32LE(caption.length, 0)
+    data.write(caption, 4, 'utf16le')
+    const out = replaceRange(buf, nameEnd, nameEnd + 4 + len * 2, data)
+    if (!dryRun) writeFileSync(file, out)
+    return {
+      action: 'set-caption', page: page.name, caption: caption, file: file, dryRun: !!dryRun,
+      sizes: { before: buf.length, after: out.length, delta: out.length - buf.length },
     }
   }
 
-  const captionFor = function (offset) {
-    const hit = captions.find(function (c) { return c.offset > offset && c.offset - offset < 260 })
-    return hit ? hit.text : null
+  const model = parsePageModel(buf)
+  const find = function (name) {
+    const i = model.elements.findIndex(function (e) { return e.name === name })
+    if (i < 0) throw new Error('объект не найден: ' + name)
+    return i
   }
 
-  const pages = []
-  for (const item of names) {
-    const isFirst = pages.length === 0
-    if (!isFirst && !/^Page/i.test(item.name)) continue
-    if (isFirst && /^Subpage/i.test(item.name)) continue
-    pages.push({ name: item.name, offset: item.offset, caption: captionFor(item.offset), subpages: [], elements: [] })
-  }
-  for (const item of names) {
-    if (!/^Subpage/i.test(item.name)) continue
-    const target = pages[pages.length - 1]
-    if (target) target.subpages.push({ name: item.name, offset: item.offset, caption: captionFor(item.offset), elements: [] })
+  if (action === 'list') {
+    const parsed = parsePages(buf)
+    return { action: 'list', file: file, elements: model.elements.length, pages: parsed.pages, warnings: parsed.warnings }
   }
 
-  const objectNames = names.filter(function (n) { return !/^(Page|Subpage)/i.test(n.name) })
-  warnings.push('Pages.spg is partially decoded: the page/subpage skeleton and the object-name index are available; element type, geometry, per-element captions and variable bindings are not mapped yet, so pages are read-only in this build')
-  if (!pages.length) warnings.push('Pages.spg: no page header decoded')
-  return { pages: pages, objectNames: objectNames, captions: captions.slice(0, 200), warnings: warnings }
+  if (action === 'move') {
+    const i = find(p.name)
+    model.elements[i].raw = withGeometry(model.elements[i].raw,
+      { x: p.x, y: p.y, width: p.width, height: p.height })
+  } else if (action === 'text') {
+    const i = find(p.name)
+    const el = model.elements[i]
+    if (el.type !== 4 && el.type !== 7) throw new Error('поле текста есть только у «Текст» и «Кнопка»')
+    el.raw = withUtf16(el.raw, el.type === 7 ? BODY.btnText1 : BODY.caption, p.text || '')
+  } else if (action === 'variable') {
+    const i = find(p.name)
+    let index = p.index
+    if (index === undefined && p.variable) index = variableIndexByName(dir, p.variable)
+    model.elements[i].raw = withVariable(model.elements[i].raw, index === undefined ? null : index, p.slot || 1)
+  } else if (action === 'color') {
+    const i = find(p.name)
+    let raw = model.elements[i].raw
+    if (p.fill) raw = withColor(raw, 'fillColor', p.fill)
+    if (p.border) raw = withColor(raw, 'borderColor', p.border)
+    if (p.font) raw = withColor(raw, 'fontColor', p.font)
+    model.elements[i].raw = raw
+  } else if (action === 'clone') {
+    const from = find(p.from)
+    let raw = Buffer.from(model.elements[from].raw)
+    if (p.name) raw = withName(raw, p.name)
+    raw = withGeometry(raw, { x: p.x, y: p.y, width: p.width, height: p.height })
+    if (p.variable !== undefined) raw = withVariable(raw, variableIndexByName(dir, p.variable), 1)
+    if (p.index !== undefined) raw = withVariable(raw, p.index, 1)
+    if (p.text !== undefined) {
+      raw = withUtf16(raw, model.elements[from].type === 7 ? BODY.btnText1 : BODY.caption, p.text)
+    }
+    raw = withId(raw, 0)                       // 0 = «выдать новый id ниже»
+    model.elements.push({ name: p.name || p.from, type: model.elements[from].type, raw: raw })
+  } else if (action === 'delete') {
+    model.elements.splice(find(p.name), 1)
+  } else {
+    throw new Error('unknown page action: ' + action + ' (list | move | text | variable | color | clone | delete | set-caption)')
+  }
+
+  // выдать уникальные id только новым объектам, существующие не трогаем
+  const used = new Set()
+  let nextId = MIN_ID
+  for (const el of model.elements) {
+    const id = readId(el.raw)
+    if (id !== null && id >= MIN_ID && id < MAX_ID) {
+      used.add(id)
+      if (id + 4 > nextId) nextId = id + 4
+    }
+  }
+  for (const el of model.elements) {
+    const id = readId(el.raw)
+    if (id === null || id === 0 || id >= MAX_ID) {
+      while (used.has(nextId)) nextId += 4
+      el.raw = withId(el.raw, nextId)
+      used.add(nextId)
+      nextId += 4
+    }
+  }
+
+  const count = Buffer.alloc(4)
+  count.writeUInt32LE(model.elements.length, 0)
+  const out = Buffer.concat([model.header, count]
+    .concat(model.elements.map(function (e) { return e.raw }))
+    .concat([model.tail]))
+  if (!dryRun) writeFileSync(file, out)
+
+  const reparsed = parsePages(out)
+  return {
+    action: action, file: file, dryRun: !!dryRun,
+    elements: model.elements.length,
+    objects: reparsed.elements,
+    sizes: { before: buf.length, after: out.length, delta: out.length - buf.length },
+    warnings: reparsed.warnings,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -522,9 +853,6 @@ export function editVariables(dir, action, payload, dryRun) {
   }
 }
 
-export function editPages(dir, action, payload, dryRun) {
-  throw new Error('page editing is not implemented: Pages.spg element records are not fully mapped yet (names/captions are readable through scada_read what=pages). Modelling is available for variables descriptions and for scripts today.')
-}
 
 export function editProjectSettings(dir, action, payload, dryRun) {
   throw new Error('project settings editing is not implemented: Project.spr flag bytes (web access, built-in OPC UA server, logging) are not mapped yet. Enable the UA server once in the editor: Проект -> Настройки.')

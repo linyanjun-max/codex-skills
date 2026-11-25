@@ -1,9 +1,15 @@
 # simple-scada-bridge
 
 A **DeepSeek Harness host plugin** (plus this usage skill) that drives a locally installed
-**Simple-Scada 2** SCADA/HMI project: read and edit the model, compile scripts through the
-editor hot key, start/stop projects on the server, read the runtime journal, and read/write
-live variables over the project's built-in OPC UA server.
+**Simple-Scada 2** SCADA/HMI project: read and edit the binary model — variables, scripts and
+**screen elements** — compile scripts through the editor hot key, start/stop projects on the
+server, read the runtime journal, and read/write live variables over the project's built-in
+OPC UA server.
+
+Verified against **Simple-Scada 2.7.3.1 (demo64)**. Project files written by older builds
+still parse: `Variables.svr` header version 8 and 10 are handled; projects re-saved by newer
+builds (header 156, e.g. the bundled `Demo-project` after an upgrade) are only partially
+supported and report that explicitly.
 
 * Plugin id / folder / patch row: **`simple-scada-bridge`**
 * Package name: **`dsh-tool-simple-scada`**
@@ -17,7 +23,7 @@ built from the four surfaces that do exist, each verified against a real install
 
 | surface | capability |
 | --- | --- |
-| project files (`Variables.svr`, `Scripts\Scripts.ssc`, `Pages.spg`, `Project.spr`, …) | offline model read, lossless `Scripts.ssc` round-trip, surgical edits with automatic backup |
+| project files (`Variables.svr`, `Scripts\Scripts.ssc`, `Pages.spg`, `Project.spr`, …) | offline model read, lossless `Scripts.ssc` round-trip, screen-element read/edit, surgical edits with automatic backup |
 | server admin websocket `ws://127.0.0.1:8758` | project state, start/stop/restart, clients, journal messages, server shutdown |
 | project built-in OPC UA server (`opc.tcp://host:port`) | live variable read / write / watch, with automatic port discovery |
 | editor hot keys (Ctrl+Shift+S, F9, Shift+F9, F5) | script compilation, verified by `Compiled\program.exs` timestamp + `Editor-log.txt` |
@@ -73,8 +79,13 @@ then reports the worker as unavailable instead of failing silently).
 
 Proven on this installation (see `docs/api-verified.md` for byte-level detail):
 
-* all four sample projects parse: 25 / 27 / 39 / 133 variables, 9 / 10 / 0 scripts,
-  1 page each, descriptions and group names decoded (Russian text intact);
+* projects parse: 25 / 27 / 39 variables, 9 / 10 scripts, 1 page each, descriptions and group
+  names decoded (Russian text intact);
+* `Pages.spg` element records are decoded: type (1..18 with Russian component names), geometry
+  (`float32` X/Y/W/H), font/fill/border colours (BGR), object id, primary and second variable
+  index, captions and button state texts — and `scada_edit {what:"page"}` rewrites geometry,
+  text, bound variable, colours, clones and deletes elements; full layout in
+  `plugin/docs/pages-spg.md`;
 * `Scripts.ssc` parse → re-encode is **byte-identical**; appending a line produces the
   expected delta, a backup, and an immediate "bytecode stale" verdict;
 * variable description rewrite shifts only the intended bytes and re-parses cleanly;
@@ -84,8 +95,9 @@ Proven on this installation (see `docs/api-verified.md` for byte-level detail):
 * OPC UA worker (asyncua 2.1.0) starts, and probing a non-UA port fails cleanly.
 
 Not implemented (refused with an explanation, never guessed): adding/removing variables,
-initial values, limits, data types, page/element editing, `Project.spr` flag editing, and
-`Scripts.ssc` of the bundled `Demo-project` (newer container variant).
+initial values, limits and data types, `Project.spr` flag editing, `Scripts.ssc` of a project
+saved by a newer build (different container), and `Variables.svr` header version 156
+(partially).
 
 ## Self-check
 
@@ -121,6 +133,7 @@ simple-scada-bridge/
     lib/admin.js              admin websocket client
     lib/editor.js             compile via hot keys + bytecode verification
     lib/values.js             OPC UA worker glue + endpoint discovery
+    docs/pages-spg.md         Pages.spg record layout, field offsets, writing rules (Russian)
     scripts/ua_worker.py      asyncua CLI: status/probe/browse/read/write/watch/wait
     scripts/editor_hotkey.ps1 focus the editor window and send one key sequence
     scripts/selfcheck.mjs     standalone self-check

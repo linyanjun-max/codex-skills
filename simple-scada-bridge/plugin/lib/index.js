@@ -288,7 +288,7 @@ export function apply(ctx, config) {
     '            (binfmt.js only writes fields whose offset is proven; unknown fields raise an',
     '             error instead of corrupting the record)',
     '',
-    '  pages     actions: list | set-caption   payload {"page":"Page1","caption":"..."}',
+    '  pages     actions: list | move | text | variable | color | clone | delete | set-caption\n            move     {"name":"fVib","x":10,"y":20,"width":80,"height":24}\n            text     {"name":"ttl","text":"..."}\n            variable {"name":"fVib","variable":"rTemp"}      (или index=15)\n            color    {"name":"panelObj","fill":"#24303A","border":"#3C4C5C"}\n            clone    {"from":"fVib","name":"fNew","x":300,"y":300,"width":80,"height":24,"variable":"rSpeed"}\n            caption  {"page":"Page1","caption":"Мнемосхема"}\n            формат и грабли: docs/pages-spg.md',
     '',
     '  project   payload {"set":{"webAccess":1}} - only decoded Project.spr fields are writable',
     '',
@@ -503,11 +503,11 @@ export function apply(ctx, config) {
   // =========================================================================
   ctx.tools.register(textTool({
     name: 'scada_edit',
-    description: 'Edit a Simple-Scada project: script source (set/add/remove/rename/append), variable fields whose byte offsets are proven, page captions, project settings. Creates a timestamped backup, refuses to edit a project that is running on the server unless force=true, re-parses the result and reports the byte delta.',
+    description: 'Edit a Simple-Scada project: script source (set/add/remove/rename/append), variable fields whose byte offsets are proven, screen elements on Pages.spg (move/text/variable/color/clone/delete), page captions, project settings. Creates a timestamped backup, refuses to edit a project that is running on the server unless force=true, re-parses the result and reports the byte delta.',
     parameters: {
       project: { type: 'string', required: true, description: 'Project folder name or absolute path.' },
       what: { type: 'string', required: true, description: 'script | variable | page | project' },
-      action: { type: 'string', required: true, description: 'script: set|add|remove|rename|append; variable: set|add|remove; page: set-caption; project: set' },
+      action: { type: 'string', required: true, description: 'script: set|add|remove|rename|append; variable: set|add|remove; page: list|move|text|variable|color|clone|delete|set-caption (see docs/pages-spg.md); project: set' },
       payload: { type: 'string', description: 'JSON object with the edit data (see scada_help topic=editing).' },
       force: { type: 'boolean', description: 'Allow editing while the project is loaded on the server.' },
       dryRun: { type: 'boolean', description: 'Compute the change without writing files.' },

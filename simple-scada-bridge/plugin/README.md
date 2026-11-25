@@ -116,3 +116,11 @@ simple-scada-bridge/
   scripts/selfcheck.mjs     # standalone self-check
   .venv/                    # plugin-local Python + asyncua (created here)
 ```
+
+
+## Форматы файлов проекта
+
+* `docs/pages-spg.md` — `Pages.spg`: структура записей объектов, смещения полей
+  (геометрия, цвета, переменная, текст, id), правила записи и список грабель
+  (`Stream read error`, редактор держит проект в памяти, 1280x720 и т.д.).
+  Реализация: `parsePages()` / `editPages()` в `lib/binfmt.js`.

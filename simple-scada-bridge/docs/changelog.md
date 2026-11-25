@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0 — screen elements (Pages.spg) are decoded and editable
+
+Verified against **Simple-Scada 2.7.3.1 (demo64)**.
+
+Added:
+
+* `parsePages()` now decodes the whole object list: record type (`0` service, `1..18` screen
+  components with Russian names), geometry as `float32` X/Y/W/H, font/fill/border colours
+  (BGR), object id, primary and second variable index, captions, button state names/texts,
+  record offsets and lengths. `scada_read {what:"pages"}` returns pages → subpages → elements.
+* `editPages()` with `list`, `move`, `text`, `variable` (name or explicit index), `color`,
+  `clone` (copies composite components with their `type 0` children), `delete`, `set-caption`;
+  every write is backed up and re-parsed.
+* `plugin/docs/pages-spg.md` — byte offsets, the variable-index semantics, and the traps
+  (`Stream read error`, composite records, 1280×720 design grid, editor holding the project
+  in memory).
+* `scada_edit` help and parameter descriptions list the page actions.
+
+Changed:
+
+* version notes: project files carry a header version, not the executable version —
+  `Variables.svr` 8/10 parse, 156 (newer build) is partial and says so in `warnings`.
+
 ## 1.0.0 — initial public version
 
 Bridge for **Simple-Scada 2 (demo64) 2.6.12.3** on Windows, built from four verified

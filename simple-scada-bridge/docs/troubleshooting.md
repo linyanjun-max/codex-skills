@@ -52,6 +52,40 @@ Read `discovery.hint`: it distinguishes three cases.
 The OPC UA worker itself can be checked with `scada_values {action:"status"}`; it reports the
 Python path it uses.
 
+## `Stream read error` after editing a page
+
+The server rejects the page list (`Ошибка при загрузке страниц проекта! Stream read error |
+subpage | Subpage1 | page | Page1`) when an object id or a colour/length field was written at
+the wrong offset. Restore the page from the backup printed by `scada_edit` (`backupDir`), then
+re-apply the change with `what:"page"` rather than editing `Pages.spg` by hand. Ids belong at
+`body+107` only — see `plugin/docs/pages-spg.md`.
+
+## My page/script edit disappeared
+
+`Editor.exe` keeps the project in memory: if the project was open while the bridge wrote
+`Pages.spg` or `Scripts.ssc`, the editor's next save replaces the file (observed: `Pages.spg`
+2731 → 23 bytes). Close the editor before writing, and reopen the project afterwards. The
+bridge already refuses edits while the *server* runs the project; the editor is a second,
+independent holder.
+
+## A new project folder is not listed by `scada_run`
+
+The server reads the project list at startup. After creating a folder under `Projects\`,
+restart `Server.exe` (the bridge cannot do it from inside: `scada_run action:"stopServer"`
+stops the server, but starting it again is an external process).
+
+## Demo-64 allows one running project
+
+With a demo-64 licence only one project may be active at a time — starting a second one is
+ignored. Stop the first with `scada_run {project, action:"stop"}`.
+
+## Variables of an upgraded project fail to parse
+
+`Variables.svr` carries a header version: `8` (2.6.x) and `10` parse, and a project re-saved
+by a newer build carries `156`, which is only partially decoded — the tool still reports
+groups, but `warnings` says `group N of M: file ended early`. Do not edit such a project with
+the bridge; open it in the editor instead.
+
 ## Scripts of `Demo-project` are "unavailable"
 
 That project's `Scripts.ssc` uses a newer container (named script group in the header). The

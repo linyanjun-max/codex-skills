@@ -12,7 +12,7 @@ exist, each verified on a real installation. Do not invent other entry points.
 
 | surface | what it gives | tool |
 | --- | --- | --- |
-| project files (`Variables.svr`, `Scripts\Scripts.ssc`, `Pages.spg`, `Project.spr`) | offline model read + surgical edits with backups | `scada_read`, `scada_edit` |
+| project files (`Variables.svr`, `Scripts\Scripts.ssc`, `Pages.spg`, `Project.spr`) | offline model read + surgical edits with backups, including **screen elements** (geometry, text, colours, bound variable, clone/delete) | `scada_read`, `scada_edit` |
 | admin websocket `ws://127.0.0.1:8758` (Server.exe) | project start/stop/restart, state, clients, journal, server shutdown | `scada_run`, `scada_journal` |
 | built-in OPC UA server (`opc.tcp://host:port`, per project) | live variable read / write / watch | `scada_values` |
 | editor hot keys (Ctrl+Shift+S, F9, Shift+F9, F5) | script compilation, verified by `Compiled\program.exs` | `scada_compile` |
@@ -59,17 +59,22 @@ Start with `scada_status`; `scada_help {topic}` returns the cookbook for
 1. **Never edit a project that is running on the server.** `scada_edit` refuses unless
    `force=true`, because the running instance holds the old model in memory and will
    overwrite your change. Stop it first.
-2. **Every write is backed up** to `Projects\_dsh_backups\<project>_<stamp>_<what>` and the
+2. **Close the editor before writing `Pages.spg`.** `Editor.exe` also holds the project in
+   memory: its next save overwrote a 2731-byte page file back to 23 bytes. Reopen the project
+   after the bridge wrote.
+3. **Every write is backed up** to `Projects\_dsh_backups\<project>_<stamp>_<what>` and the
    result is re-parsed before it is accepted. If a payload touches a field whose byte
    offset is not proven, the tool **fails with an explanation** instead of guessing.
-3. **Only proven fields are writable**: script bodies (all of `Scripts.ssc`), variable
-   descriptions, and nothing else yet. Variable add/remove, initial values, limits, types,
-   page elements and `Project.spr` flags are refused with a reason — write those in the
-   editor.
-4. **`Demo-project` uses a different `Scripts.ssc` container** (header carries a named
+4. **Only proven fields are writable**: script bodies (all of `Scripts.ssc`), variable
+   descriptions, and screen elements of `Pages.spg` (`list/move/text/variable/color/clone/
+   delete/set-caption`; record layout in `plugin/docs/pages-spg.md`). Variable add/remove,
+   initial values, limits, types and `Project.spr` flags are refused with a reason — write
+   those in the editor. Never locate an object id by value: it lives at `body+107`, and a
+   wrong guess produces `Stream read error | subpage | page`.
+5. **`Demo-project` uses a different `Scripts.ssc` container** (header carries a named
    script group). Its scripts are reported as unavailable; the other three sample projects
    decode byte-identically. Do not treat that as corruption.
-5. When a compile is refused, `scada_compile` returns the editor log lines it captured and
+6. When a compile is refused, `scada_compile` returns the editor log lines it captured and
    the bytecode timestamps — read them instead of retrying blindly.
 
 ## Live values (OPC UA)
@@ -96,3 +101,7 @@ type and reads it back, so the result shows what the SCADA actually stored.
 | values `no OPC UA endpoint found` | built-in UA server disabled or project not started | enable in project settings, then `scada_run action:"start"` |
 | `project not found` | name must equal the folder under `Projects\` | `scada_projects` lists exact names |
 | journal empty but log has lines | journal page needs the server; log tail is separate | both are returned |
+| `Stream read error \| subpage \| page` | page record written at a wrong offset | restore `backupDir`, redo with `what:"page"` |
+| page/script edit vanished | the editor had the project open and saved over it | close the editor, redo, reopen |
+| new project folder not listed | server reads the project list at startup | restart `Server.exe` |
+| `warnings: group N of M: file ended early` | `Variables.svr` header version 156 (newer build) | open that project in the editor |
